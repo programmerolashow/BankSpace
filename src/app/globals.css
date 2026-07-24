@@ -2,11 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* stylelint-disable at-rule-no-unknown */
-@custom-variant dark {
-  &:is(.dark *);
-}
-/* stylelint-enable at-rule-no-unknown */
+/* Dark mode is handled by the .dark selector via the variables below. */
 
 @theme inline {
   --color-background: var(--background);
