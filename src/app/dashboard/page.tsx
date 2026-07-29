@@ -42,7 +42,7 @@ export default function DashboardPage() {
     <div>
       <div className="grid gap-8 xl:grid-cols-[1.1fr_.9fr]">
         <section className="flex flex-col justify-center">
-          <p className="mb-4 text-slate-500">Welcome back, Ilias</p>
+          <p className="mb-4 text-slate-500">Welcome back, Illias</p>
           <h1 className="max-w-xl text-5xl font-black leading-tight tracking-tight md:text-6xl">
             Smart banking <br />
             for a{" "}
