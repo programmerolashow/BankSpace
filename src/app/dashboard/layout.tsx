@@ -63,15 +63,31 @@ export default function DashboardLayout({
 
         <section className="bg-[radial-gradient(circle_at_top_left,#ffffff_0,#f7f6ff_38%,#f8f9ff_70%)] px-5 py-6 md:px-10 lg:px-14">
           <header className="mb-10 flex items-center justify-between gap-5">
-            <div className="hidden w-full max-w-md items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm md:flex">
-              <span className="text-slate-400">⌕</span>
+            <div className="relative hidden h-[52px] w-full max-w-md items-center rounded-full border border-slate-200 bg-white pl-5 pr-1 shadow-sm md:flex">
               <input
-                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                type="text"
                 placeholder="Search anything..."
+                className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
               />
-              <kbd className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-400">
-                ⌘ K
-              </kbd>
+              <button
+                type="button"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#3248f4] to-[#662dff] text-white shadow-sm shadow-indigo-500/20 transition-opacity hover:opacity-90"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="h-4 w-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                  />
+                </svg>
+              </button>
             </div>
 
             <div className="ml-auto flex items-center gap-3">
