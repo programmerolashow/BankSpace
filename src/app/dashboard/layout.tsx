@@ -63,7 +63,7 @@ export default function DashboardLayout({
 
         <section className="bg-[radial-gradient(circle_at_top_left,#ffffff_0,#f7f6ff_38%,#f8f9ff_70%)] px-5 py-6 md:px-10 lg:px-14">
           <header className="mb-10 flex items-center justify-between gap-5">
-            <div className="relative hidden h-[52px] w-full max-w-md items-center rounded-full border border-slate-200 bg-white pl-5 pr-1 shadow-sm md:flex">
+            <div className="relative hidden h-13 w-full max-w-md items-center rounded-full border border-slate-200 bg-white pl-5 pr-1 shadow-sm md:flex">
               <input
                 type="text"
                 placeholder="Search anything..."
@@ -71,7 +71,7 @@ export default function DashboardLayout({
               />
               <button
                 type="button"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#3248f4] to-[#662dff] text-white shadow-sm shadow-indigo-500/20 transition-opacity hover:opacity-90"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-r from-[#3248f4] to-[#662dff] text-white shadow-sm shadow-indigo-500/20 transition-opacity hover:opacity-90"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
