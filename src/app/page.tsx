@@ -1,65 +1,262 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+const navItems = [
+  "Home",
+  "Accounts",
+  "Cards",
+  "Transactions",
+  "Payments",
+  "Investments",
+  "Savings Goals",
+  "Budgets",
+  "Analytics",
+  "Settings",
+];
+
+const quickActions = [
+  { label: "Send Money", color: "bg-violet-100 text-violet-600", icon: "➤" },
+  { label: "Pay Bills", color: "bg-emerald-100 text-emerald-600", icon: "▣" },
+  { label: "Top Up", color: "bg-orange-100 text-orange-500", icon: "+" },
+  { label: "Buy Airtime", color: "bg-sky-100 text-sky-600", icon: "▯" },
+  { label: "More", color: "bg-slate-100 text-slate-500", icon: "⌘" },
+];
+
+const transactions = [
+  { name: "Transfer to Michael O.", type: "Transfer", amount: "-₦50,000.00", color: "text-slate-950", badge: "bg-emerald-500" },
+  { name: "Shoprite Supermarket", type: "Shopping", amount: "-₦15,600.00", color: "text-slate-950", badge: "bg-violet-600" },
+  { name: "Salary from Neominds", type: "Income", amount: "+ ₦250,000.00", color: "text-emerald-500", badge: "bg-sky-500" },
+  { name: "Ikeja Electric", type: "Bills & Utilities", amount: "-₦8,200.00", color: "text-slate-950", badge: "bg-orange-400" },
+];
+
+export default function Page() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-39.5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/8 px-5 transition-colors hover:border-transparent hover:bg-black/4 dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-39.5"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="min-h-screen bg-[#f8f9ff] text-slate-950">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_1fr]">
+        <aside className="hidden border-r border-slate-200/70 bg-white/80 px-5 py-7 backdrop-blur lg:flex lg:flex-col">
+          <div className="mb-10 flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-lg bg-linear-to-br from-[#7c4dff] to-[#2454ff] text-white font-bold">
+              B
+            </div>
+            <span className="text-xl font-bold">
+              Bank<span className="text-[#3f3cff]">Space</span>
+            </span>
+          </div>
+
+          <nav className="space-y-2">
+            {navItems.map((item, index) => (
+              <a
+                key={item}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${
+                  index === 0
+                    ? "bg-[#eeeeff] text-[#3f3cff]"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+                href="#"
+              >
+                <span className="grid h-5 w-5 place-items-center rounded text-xs">
+                  {index + 1}
+                </span>
+                {item}
+              </a>
+            ))}
+          </nav>
+
+          <div className="mt-auto rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-5">
+            <h3 className="font-semibold text-[#3f3cff]">Upgrade to Premium</h3>
+            <p className="mt-2 text-sm leading-5 text-slate-500">
+              Unlock higher limits, advanced analytics and more.
+            </p>
+            <button className="mt-4 w-full rounded-xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25">
+              Upgrade Now
+            </button>
+          </div>
+        </aside>
+
+        <section className="bg-[radial-gradient(circle_at_top_left,#ffffff_0,#f7f6ff_38%,#f8f9ff_70%)] px-5 py-6 md:px-10 lg:px-14">
+          <header className="mb-10 flex items-center justify-between gap-5">
+            <div className="hidden w-full max-w-md items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm md:flex">
+              <span className="text-slate-400">⌕</span>
+              <input
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                placeholder="Search anything..."
+              />
+              <kbd className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-400">⌘ K</kbd>
+            </div>
+
+            <div className="ml-auto flex items-center gap-3">
+              <button className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-[#3f3cff] shadow-sm">
+                ◌
+              </button>
+              <button className="rounded-2xl bg-linear-to-r from-[#3248f4] to-[#662dff] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25">
+                Send Money
+              </button>
+            </div>
+          </header>
+
+          <div className="grid gap-8 xl:grid-cols-[1.1fr_.9fr]">
+            <section className="flex flex-col justify-center">
+              <p className="mb-4 text-slate-500">Welcome back, Ilias 👋</p>
+              <h1 className="max-w-xl text-5xl font-black leading-tight tracking-tight md:text-6xl">
+                Smart banking <br />
+                for a{" "}
+                <span className="bg-linear-to-r from-[#6757ff] to-[#43a1ff] bg-clip-text text-transparent">
+                  better life
+                </span>
+              </h1>
+              <p className="mt-6 max-w-md text-base leading-7 text-slate-500">
+                Manage your finances, make payments, save and invest — all in
+                one secure place.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-4">
+                <button className="rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-indigo-500/25">
+                  Send Money
+                </button>
+                <button className="rounded-2xl border border-slate-200 bg-white px-7 py-4 text-sm font-semibold text-slate-700 shadow-sm">
+                  View Analytics
+                </button>
+              </div>
+            </section>
+
+            <section className="relative overflow-hidden rounded-[28px] bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9] p-8 text-white shadow-2xl shadow-indigo-500/30">
+              <div className="absolute inset-x-0 bottom-7 h-28 opacity-30">
+                <div className="h-full rounded-[50%] border border-white/40" />
+              </div>
+
+              <div className="relative z-10 flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-white/75">Total Balance</p>
+                  <h2 className="mt-4 text-4xl font-bold">₦1,250,450.00</h2>
+                  <div className="mt-4 inline-flex rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+                    +12.5% vs last month
+                  </div>
+                </div>
+
+                <button className="rounded-2xl bg-white/15 px-3 py-2 text-white backdrop-blur">
+                  •••
+                </button>
+              </div>
+
+              <div className="relative z-10 mt-20 flex items-end justify-between">
+                <p className="font-semibold tracking-widest">•••• 4598</p>
+                <p className="text-xl font-black italic">VISA</p>
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-10 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+            <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+              <h2 className="mb-5 font-bold">Quick Actions</h2>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.label}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                  >
+                    <span
+                      className={`mx-auto grid h-12 w-12 place-items-center rounded-full text-xl ${action.color}`}
+                    >
+                      {action.icon}
+                    </span>
+                    <span className="mt-3 block text-xs font-semibold">
+                      {action.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="font-bold">Spending Overview</h2>
+                <span className="text-xs font-semibold text-slate-500">
+                  This Month
+                </span>
+              </div>
+
+              <div className="flex items-center gap-7">
+                <div className="grid h-36 w-36 shrink-0 place-items-center rounded-full bg-[conic-gradient(#4454ff_0_34%,#ec6fc8_34%_57%,#52c991_57%_83%,#75d4ee_83%_100%)]">
+                  <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center">
+                    <div>
+                      <p className="font-black">₦350,000</p>
+                      <p className="text-xs text-slate-400">Total Spend</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-full space-y-3 text-sm">
+                  {["Transfers", "Shopping", "Bills & Utilities", "Food & Dining"].map(
+                    (item, index) => (
+                      <div key={item} className="flex items-center justify-between">
+                        <span className="text-slate-500">{item}</span>
+                        <span className="font-semibold">
+                          {["₦120,000", "₦80,000", "₦60,000", "₦50,000"][index]}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+            <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-bold">Recent Transactions</h2>
+                <a className="text-xs font-semibold text-[#3f3cff]" href="#">
+                  View All
+                </a>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {transactions.map((tx) => (
+                  <div key={tx.name} className="flex items-center gap-4 py-4">
+                    <span className={`h-11 w-11 rounded-full ${tx.badge}`} />
+                    <div className="mr-auto">
+                      <p className="text-sm font-bold">{tx.name}</p>
+                      <p className="text-xs text-slate-400">{tx.type}</p>
+                    </div>
+                    <p className={`text-sm font-bold ${tx.color}`}>{tx.amount}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+              <div className="mb-6 flex items-center justify-between">
+                <h2 className="font-bold">Savings Goals</h2>
+                <a className="text-xs font-semibold text-[#3f3cff]" href="#">
+                  View All
+                </a>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="h-16 w-20 rounded-xl bg-linear-to-br from-[#080617] via-[#692fff] to-[#ff7ad9]" />
+                <div className="flex-1">
+                  <p className="font-bold">MacBook Pro</p>
+                  <p className="mt-1 text-sm font-semibold text-[#3f3cff]">
+                    ₦650,000 of ₦1,200,000
+                  </p>
+                  <div className="mt-3 h-2 rounded-full bg-slate-200">
+                    <div className="h-full w-[54%] rounded-full bg-linear-to-r from-[#403eff] to-[#6533ff]" />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    Target date: Dec 31, 2025
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-7 rounded-2xl bg-linear-to-r from-[#efeaff] to-[#fff0fb] p-4">
+                <p className="font-semibold">You’re doing great!</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Keep saving to achieve your goals faster.
+                </p>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
