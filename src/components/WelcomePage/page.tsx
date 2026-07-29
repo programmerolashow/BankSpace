@@ -27,7 +27,7 @@ export default function WelcomePage() {
               B
             </div>
             <div>
-              <p className="text-sm font-semibold">Bankite</p>
+              <p className="text-sm font-semibold">BankSpace</p>
               <p className="text-xs text-slate-500">Get started</p>
             </div>
           </div>
