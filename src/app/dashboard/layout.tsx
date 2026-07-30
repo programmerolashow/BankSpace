@@ -42,9 +42,6 @@ export default function DashboardLayout({
                     : "text-slate-600 transition hover:bg-slate-100"
                 }`}
               >
-                <span className="grid h-5 w-5 place-items-center rounded text-xs">
-                  {index + 1}
-                </span>
                 {item.label}
               </Link>
             ))}
