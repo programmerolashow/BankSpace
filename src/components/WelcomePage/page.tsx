@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import Link from "next/link"
 
 const highlights = [
@@ -21,13 +22,11 @@ export default function WelcomePage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-10">
         <header className="flex items-center justify-between rounded-full border border-slate-200/80 bg-white/80 px-5 py-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-linear-to-br from-[#7c4dff] to-[#2454ff] font-bold text-white">
-              B
-            </div>
-            <div>
-              <p className="text-sm font-semibold">BankSpace</p>
-              <p className="text-xs text-slate-500">Get started</p>
-            </div>
+            <img
+              src="/assets/bankspace_logo.png"
+              alt="BankSpace logo"
+              className="h-12.5 w-30 rounded-full object-cover"
+            />
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -48,7 +47,7 @@ export default function WelcomePage() {
         <section className="grid items-center gap-8 rounded-4xl border border-slate-200/80 bg-white/80 p-8 shadow-[0_30px_80px_-30px_rgba(68,84,255,0.35)] backdrop-blur lg:grid-cols-[1.1fr_0.9fr] lg:p-12">
           <div>
             <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">
-              Welcome to Bankite Space
+              Welcome to BankSpace
             </span>
             <h1 className="mt-5 text-4xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
               Start building a brighter financial future.
@@ -73,20 +72,12 @@ export default function WelcomePage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9] p-7 text-white shadow-2xl shadow-indigo-500/30">
-            <div className="rounded-3xl border border-white/25 bg-white/15 p-6 backdrop-blur">
-              <p className="text-sm text-white/80">Your total balance</p>
-              <p className="mt-4 text-4xl font-black">₦1,250,450.00</p>
-              <div className="mt-6 flex items-center justify-between rounded-2xl bg-white/15 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold">Safe transfers</p>
-                  <p className="text-xs text-white/70">Instant and secure</p>
-                </div>
-                <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-200">
-                  +12.5%
-                </span>
-              </div>
-            </div>
+          <div className="overflow-hidden rounded-[28px]">
+            <img
+              src="/assets/getStarted.PNG"
+              alt="Bankite Space dashboard preview"
+              className="h-full w-full rounded-[22px] object-cover"
+            />
           </div>
         </section>
 
