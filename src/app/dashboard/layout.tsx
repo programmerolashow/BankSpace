@@ -1,8 +1,7 @@
 'use client'
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 const navItems = [
   { href: "/dashboard", label: "Home" },
@@ -22,8 +21,12 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
+  const [pathname, setPathname] = useState("")
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    setPathname(window.location.pathname)
+  }, [])
 
   return (
     <main className="min-h-screen bg-[#f8f9ff] text-slate-950">
