@@ -22,11 +22,12 @@ export default function WelcomePage() {
       <div className="mx-auto flex max-w-7xl flex-col gap-10">
         <header className="flex items-center justify-between rounded-full border border-slate-200/80 bg-white/80 px-5 py-3 shadow-sm backdrop-blur">
           <div className="flex items-center gap-3">
-            <img
-              src="/assets/bankspace_logo.png"
-              alt="BankSpace logo"
-              className="h-12.5 w-30 rounded-full object-cover"
-            />
+            <div className="grid h-9 w-9 place-items-center rounded-lg bg-linear-to-br from-[#7c4dff] to-[#2454ff] font-bold text-white">
+              B
+            </div>
+            <span className="text-xl font-bold">
+              Bank<span className="text-[#3f3cff]">Space</span>
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <Link
