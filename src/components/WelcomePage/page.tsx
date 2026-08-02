@@ -136,7 +136,7 @@ export default function WelcomePage() {
 
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
-          <div className="relative w-full max-w-3xl rounded-[32px] border border-slate-200 bg-white shadow-2xl">
+          <div className="relative w-full max-w-3xl rounded-4xl border border-slate-200 bg-white shadow-2xl">
             <button
               type="button"
               onClick={() => syncAuthParam(null)}
