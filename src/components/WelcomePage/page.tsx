@@ -1,5 +1,11 @@
+"use client"
+
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useCallback, useEffect } from "react"
+import LoginPage from "@/app/(auth)/login/page"
+import RegisterPage from "@/app/(auth)/register/page"
 
 const highlights = [
   {
@@ -17,6 +23,39 @@ const highlights = [
 ]
 
 export default function WelcomePage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const authMode = searchParams.get("auth")
+  const isAuthModalOpen = authMode === "login" || authMode === "register"
+
+  const syncAuthParam = useCallback(
+    (mode: "login" | "register" | null) => {
+      const params = new URLSearchParams(searchParams.toString())
+
+      if (mode) {
+        params.set("auth", mode)
+      } else {
+        params.delete("auth")
+      }
+
+      const nextQuery = params.toString()
+      const nextUrl = nextQuery ? `/?${nextQuery}` : "/"
+      router.replace(nextUrl, { scroll: false })
+    },
+    [router, searchParams],
+  )
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isAuthModalOpen) {
+        syncAuthParam(null)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [isAuthModalOpen, syncAuthParam])
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f7f6ff_38%,#f8f9ff_70%)] px-6 py-10 text-slate-950 sm:px-8 lg:px-12">
       <div className="mx-auto flex max-w-7xl flex-col gap-10">
@@ -30,18 +69,20 @@ export default function WelcomePage() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
+            <button
+              type="button"
+              onClick={() => syncAuthParam("login")}
               className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Login
-            </Link>
-            <Link
-              href="/register"
+            </button>
+            <button
+              type="button"
+              onClick={() => syncAuthParam("register")}
               className="rounded-full bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-violet-500/25"
             >
               Create account
-            </Link>
+            </button>
           </div>
         </header>
 
@@ -58,12 +99,13 @@ export default function WelcomePage() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
-              <Link
-                href="/register"
+              <button
+                type="button"
+                onClick={() => syncAuthParam("register")}
                 className="rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-indigo-500/25"
               >
                 Get started
-              </Link>
+              </button>
               <Link
                 href="/dashboard"
                 className="rounded-2xl border border-slate-200 bg-white px-7 py-4 text-sm font-semibold text-slate-700 shadow-sm"
@@ -91,6 +133,24 @@ export default function WelcomePage() {
           ))}
         </section>
       </div>
+
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-3xl rounded-[32px] border border-slate-200 bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => syncAuthParam(null)}
+              className="absolute right-4 top-4 rounded-full border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50"
+              aria-label="Close auth dialog"
+            >
+              ✕
+            </button>
+            <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8 lg:p-10">
+              {authMode === "login" ? <LoginPage /> : <RegisterPage />}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

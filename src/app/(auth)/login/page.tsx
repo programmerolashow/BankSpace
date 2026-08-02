@@ -59,9 +59,13 @@ export default function LoginPage() {
         <Link href="/forgot-password" className="font-medium text-violet-700 hover:underline">
           Forgot password?
         </Link>
-        <Link href="/register" className="font-medium text-slate-700 hover:underline">
+        <button
+          type="button"
+          onClick={() => router.push("/?auth=register", { scroll: false })}
+          className="font-medium text-slate-700 hover:underline"
+        >
           Create an account
-        </Link>
+        </button>
       </div>
     </div>
   )

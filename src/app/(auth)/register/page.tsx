@@ -1,6 +1,5 @@
 'use client'
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 export default function RegisterPage() {
@@ -67,9 +66,13 @@ export default function RegisterPage() {
 
       <p className="text-sm text-slate-600">
         Already have an account?{' '}
-        <Link href="/login" className="font-semibold text-violet-700 hover:underline">
+        <button
+          type="button"
+          onClick={() => router.push("/?auth=login", { scroll: false })}
+          className="font-semibold text-violet-700 hover:underline"
+        >
           Sign in
-        </Link>
+        </button>
       </p>
     </div>
   )
