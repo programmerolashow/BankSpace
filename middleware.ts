@@ -22,8 +22,9 @@ export function middleware(request: NextRequest) {
   )
   const authToken = request.cookies.get("auth")?.value
   const isAuthenticated = Boolean(authToken && authToken !== "")
+  const authGuardEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTH_GUARD === "true"
 
-  if (isProtected && !isAuthenticated) {
+  if (authGuardEnabled && isProtected && !isAuthenticated) {
     const loginUrl = new URL("/", request.url)
     loginUrl.searchParams.set("auth", "login")
     return NextResponse.redirect(loginUrl)
