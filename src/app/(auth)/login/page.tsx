@@ -2,14 +2,39 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 export default function LoginPage() {
   const router = useRouter()
+  const [email, setEmail] = useState("user@bankite.com")
+  const [password, setPassword] = useState("password123")
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    document.cookie = "auth=demo; path=/; max-age=3600"
-    router.push("/dashboard")
+    setError("")
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed")
+      }
+
+      router.push("/dashboard")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -28,7 +53,8 @@ export default function LoginPage() {
           <input
             id="email"
             type="email"
-            defaultValue="user@bankite.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0"
             placeholder="name@example.com"
           />
@@ -41,17 +67,21 @@ export default function LoginPage() {
           <input
             id="password"
             type="password"
-            defaultValue="password123"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0"
             placeholder="Enter your password"
           />
         </div>
 
+        {error ? <p className="text-sm font-medium text-rose-600">{error}</p> : null}
+
         <button
           type="submit"
-          className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25"
+          disabled={isLoading}
+          className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Continue to dashboard
+          {isLoading ? "Signing in..." : "Continue to dashboard"}
         </button>
       </form>
 

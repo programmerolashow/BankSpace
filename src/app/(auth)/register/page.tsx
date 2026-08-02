@@ -1,14 +1,40 @@
 'use client'
 
 import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 export default function RegisterPage() {
   const router = useRouter()
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    document.cookie = "auth=demo; path=/; max-age=3600"
-    router.push("/dashboard")
+    setError("")
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Registration failed")
+      }
+
+      router.push("/dashboard")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -27,6 +53,8 @@ export default function RegisterPage() {
             </label>
             <input
               id="fullName"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0"
               placeholder="Ada Lovelace"
             />
@@ -38,6 +66,8 @@ export default function RegisterPage() {
             <input
               id="email"
               type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0"
               placeholder="you@example.com"
             />
@@ -51,16 +81,21 @@ export default function RegisterPage() {
           <input
             id="password"
             type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0"
             placeholder="Create a secure password"
           />
         </div>
 
+        {error ? <p className="text-sm font-medium text-rose-600">{error}</p> : null}
+
         <button
           type="submit"
-          className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25"
+          disabled={isLoading}
+          className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Create account
+          {isLoading ? "Creating account..." : "Create account"}
         </button>
       </form>
 

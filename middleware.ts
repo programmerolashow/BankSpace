@@ -20,10 +20,12 @@ export function middleware(request: NextRequest) {
   const isProtected = protectedPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   )
-  const isAuthenticated = request.cookies.get("auth")?.value === "demo"
+  const authToken = request.cookies.get("auth")?.value
+  const isAuthenticated = Boolean(authToken && authToken !== "")
 
   if (isProtected && !isAuthenticated) {
-    const loginUrl = new URL("/login", request.url)
+    const loginUrl = new URL("/", request.url)
+    loginUrl.searchParams.set("auth", "login")
     return NextResponse.redirect(loginUrl)
   }
 
