@@ -3,9 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect } from "react"
-import LoginPage from "@/app/(auth)/login/page"
-import RegisterPage from "@/app/(auth)/register/page"
+import { useCallback, useEffect, useMemo } from "react"
 
 const highlights = [
   {
@@ -27,6 +25,17 @@ export default function WelcomePageClient() {
   const searchParams = useSearchParams()
   const authMode = searchParams.get("auth")
   const isAuthModalOpen = authMode === "login" || authMode === "register"
+  const authContent = useMemo(() => {
+    if (authMode === "login") {
+      return <p className="text-sm text-slate-600">Login form is available from the auth route.</p>
+    }
+
+    if (authMode === "register") {
+      return <p className="text-sm text-slate-600">Registration form is available from the auth route.</p>
+    }
+
+    return null
+  }, [authMode])
 
   const syncAuthParam = useCallback(
     (mode: "login" | "register" | null) => {
@@ -146,7 +155,7 @@ export default function WelcomePageClient() {
               ✕
             </button>
             <div className="max-h-[85vh] overflow-y-auto p-6 sm:p-8 lg:p-10">
-              {authMode === "login" ? <LoginPage /> : <RegisterPage />}
+              {authContent}
             </div>
           </div>
         </div>
