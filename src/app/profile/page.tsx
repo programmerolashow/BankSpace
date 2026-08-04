@@ -19,7 +19,7 @@ import {
 export default function ProfilePage() {
   const [isSaved, setIsSaved] = useState(false)
   const [formData, setFormData] = useState({
-    fullName: "Illias Omotayo",
+    fullName: "Illias Olanrewaju",
     email: "illias.o@bankspace.com",
     phone: "+234 812 345 6789",
     dob: "1994-08-14",
