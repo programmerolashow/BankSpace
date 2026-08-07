@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   User,
   ShieldCheck,
@@ -12,14 +13,14 @@ import {
   Lock,
   Edit2,
   CheckCircle2,
-  Copy,
-  Check,
+  LogOut,
 } from "lucide-react"
 
 export default function ProfilePage() {
+  const router = useRouter()
   const [isSaved, setIsSaved] = useState(false)
   const [formData, setFormData] = useState({
-    fullName: "Illias Olanrewaju",
+    fullName: "Illias Omotayo",
     email: "illias.o@bankspace.com",
     phone: "+234 812 345 6789",
     dob: "1994-08-14",
@@ -32,6 +33,17 @@ export default function ProfilePage() {
     e.preventDefault()
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 3000)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      // Fallback
+    }
+    document.cookie = "auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    router.push("/?auth=login")
+    router.refresh()
   }
 
   return (
@@ -54,9 +66,19 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-4 text-xs font-semibold text-[#3f3cff]">
-            <p>Premium Account Tier</p>
-            <p className="mt-1 text-slate-700">Daily limit: ₦10,000,000.00</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-4 text-xs font-semibold text-[#3f3cff]">
+              <p>Premium Account Tier</p>
+              <p className="mt-1 text-slate-700">Daily limit: ₦10,000,000.00</p>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log Out</span>
+            </button>
           </div>
         </div>
       </section>

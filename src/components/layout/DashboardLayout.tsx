@@ -1,8 +1,8 @@
 'use client'
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { useState, useRef, useEffect } from "react"
 import {
   LayoutDashboard,
   Wallet,
@@ -20,6 +20,9 @@ import {
   X,
   Sparkles,
   ArrowUpRight,
+  ChevronDown,
+  LogOut,
+  ShieldCheck,
 } from "lucide-react"
 
 const navItems = [
@@ -42,8 +45,34 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      // Fallback manual cookie clear
+    }
+    document.cookie = "auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    setUserDropdownOpen(false)
+    router.push("/?auth=login")
+    router.refresh()
+  }
 
   return (
     <main className="min-h-screen bg-[#f8f9ff] text-slate-950 font-sans">
@@ -217,19 +246,89 @@ export default function DashboardLayout({
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
 
-              {/* Profile Avatar Button */}
-              <Link
-                href="/profile"
-                className="flex items-center gap-2.5 rounded-full border border-slate-200/80 bg-white p-1 pr-3.5 shadow-xs hover:bg-slate-50 transition-colors"
-              >
-                <div className="grid h-8 w-8 place-items-center rounded-full bg-linear-to-br from-[#7257ff] to-[#4335eb] font-bold text-xs text-white">
-                  IO
-                </div>
-                <div className="hidden md:block text-left text-xs">
-                  <p className="font-bold text-slate-900 leading-tight">Illias O.</p>
-                  <p className="text-[10px] text-emerald-600 font-medium">Verified User</p>
-                </div>
-              </Link>
+              {/* Profile Avatar Button with Dropdown at the Very Edge */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-2.5 rounded-full border border-slate-200/80 bg-white p-1 pr-3 shadow-xs hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-[#3f3cff]/20"
+                >
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-linear-to-br from-[#7257ff] to-[#4335eb] font-bold text-xs text-white">
+                    IO
+                  </div>
+                  <div className="hidden md:block text-left text-xs">
+                    <p className="font-bold text-slate-900 leading-tight">Illias O.</p>
+                    <p className="text-[10px] text-emerald-600 font-medium">Verified User</p>
+                  </div>
+                  <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${userDropdownOpen ? "rotate-180 text-[#3f3cff]" : ""}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {userDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-64 rounded-3xl border border-slate-200 bg-white p-3 shadow-2xl backdrop-blur-md z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    {/* User Identity Header */}
+                    <div className="rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-3.5 mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-[#7257ff] to-[#4335eb] font-bold text-xs text-white shadow-xs">
+                          IO
+                        </div>
+                        <div className="overflow-hidden">
+                          <p className="font-bold text-slate-900 text-xs truncate">Illias Omotayo</p>
+                          <p className="text-[11px] text-slate-500 truncate">illias.o@bankspace.com</p>
+                        </div>
+                      </div>
+                      <div className="mt-2.5 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[10px] font-semibold text-emerald-700">
+                        <span className="flex items-center gap-1">
+                          <ShieldCheck className="h-3 w-3" /> Tier 3 Account
+                        </span>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 font-bold">Active</span>
+                      </div>
+                    </div>
+
+                    {/* Navigation Items */}
+                    <div className="space-y-1">
+                      <Link
+                        href="/profile"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                      >
+                        <User className="h-4 w-4 text-[#3f3cff]" />
+                        <span>View Profile</span>
+                      </Link>
+
+                      <Link
+                        href="/settings"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                      >
+                        <Settings className="h-4 w-4 text-[#3f3cff]" />
+                        <span>Account Settings & Security</span>
+                      </Link>
+
+                      <Link
+                        href="/accounts"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                      >
+                        <Wallet className="h-4 w-4 text-[#3f3cff]" />
+                        <span>My Accounts & Cards</span>
+                      </Link>
+                    </div>
+
+                    <div className="my-2 border-t border-slate-100" />
+
+                    {/* Logout Button */}
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4 text-rose-600" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </header>
 
