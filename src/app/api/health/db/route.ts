@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server"
-import { getDb } from "@/lib/db"
+import { getPrismaClient } from "@/lib/prisma"
 
 export async function GET() {
   try {
-    const db = getDb()
-    const result = await db.query("SELECT NOW() as now;")
+    const { client, isFallback } = getPrismaClient()
+    const result = await client.$queryRaw`SELECT 1 as connected;`
 
     return NextResponse.json({
       ok: true,
-      database: "PostgreSQL (NeonDB)",
-      mode: db.isFallback ? "in-memory-fallback" : "neondb-postgres-connected",
-      now: result[0]?.now || new Date().toISOString(),
+      database: "PostgreSQL (NeonDB + Prisma ORM)",
+      mode: isFallback ? "in-memory-fallback" : "neondb-prisma-connected",
+      result,
     })
   } catch (error) {
     return NextResponse.json(
