@@ -1,0 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { defineConfig } from "prisma/config"
+
+export default defineConfig({
+  earlyAccess: true,
+  schema: "prisma/schema.prisma",
+  migrate: {
+    datasourceUrl: process.env.DATABASE_URL,
+  },
+  datasourceUrl: process.env.DATABASE_URL,
+} as any)

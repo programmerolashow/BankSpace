@@ -1,17 +1,9 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
-  User,
   ShieldCheck,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Sparkles,
-  Lock,
-  Edit2,
   CheckCircle2,
   LogOut,
 } from "lucide-react"
@@ -29,8 +21,45 @@ export default function ProfilePage() {
     bvn: "22198471209",
   })
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("bankspace_user")
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        setFormData((prev) => ({
+          ...prev,
+          fullName: parsed.name || prev.fullName,
+          email: parsed.email || prev.email,
+          phone: parsed.phone || prev.phone,
+        }))
+      }
+    } catch {
+      // Ignore
+    }
+
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user?.name) {
+          setFormData((prev) => ({
+            ...prev,
+            fullName: data.user.name || prev.fullName,
+            email: data.user.email || prev.email,
+            phone: data.user.phone || prev.phone,
+          }))
+          localStorage.setItem("bankspace_user", JSON.stringify(data.user))
+        }
+      })
+      .catch(() => null)
+  }, [])
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
+    try {
+      localStorage.setItem("bankspace_user", JSON.stringify({ name: formData.fullName, email: formData.email, phone: formData.phone }))
+    } catch {
+      // Ignore
+    }
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 3000)
   }
@@ -41,19 +70,26 @@ export default function ProfilePage() {
     } catch {
       // Fallback
     }
+    localStorage.removeItem("bankspace_user")
     document.cookie = "auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
     router.push("/?auth=login")
     router.refresh()
   }
 
+  const nameParts = (formData.fullName || "User").trim().split(" ")
+  const initials =
+    nameParts.length >= 2
+      ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase()
+      : (nameParts[0][0] || "U").toUpperCase()
+
   return (
     <div className="space-y-8">
       {/* Header Profile Hero Card */}
-      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm">
+      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center justify-between">
           <div className="flex items-center gap-5">
             <div className="grid h-20 w-20 place-items-center rounded-3xl bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9] font-black text-2xl text-white shadow-xl shadow-indigo-500/20">
-              IO
+              {initials}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -86,7 +122,7 @@ export default function ProfilePage() {
       {/* Edit Form & Account Security Sidebar */}
       <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
         {/* Form */}
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm space-y-6">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-xs space-y-6">
           <h2 className="font-bold text-slate-900 text-lg flex items-center justify-between">
             <span>Personal Information</span>
             {isSaved && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-4 w-4" /> Profile Updated!</span>}
@@ -158,7 +194,7 @@ export default function ProfilePage() {
 
         {/* Security Summary Sidebar */}
         <section className="space-y-6">
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-4">
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
             <h2 className="font-bold text-slate-900 text-lg">Security & Verifications</h2>
 
             <div className="space-y-3">

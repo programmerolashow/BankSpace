@@ -1,9 +1,14 @@
+'use client'
+
+import { useEffect, useState } from "react"
+import Link from "next/link"
+
 const quickActions = [
-  { label: "Send Money", color: "bg-violet-100 text-violet-600", icon: "➤" },
-  { label: "Pay Bills", color: "bg-emerald-100 text-emerald-600", icon: "▣" },
-  { label: "Top Up", color: "bg-orange-100 text-orange-500", icon: "+" },
-  { label: "Buy Airtime", color: "bg-sky-100 text-sky-600", icon: "▯" },
-  { label: "More", color: "bg-slate-100 text-slate-500", icon: "⌘" },
+  { label: "Send Money", color: "bg-violet-100 text-violet-600", icon: "➤", href: "/transfer" },
+  { label: "Pay Bills", color: "bg-emerald-100 text-emerald-600", icon: "▣", href: "/transfer" },
+  { label: "Top Up", color: "bg-orange-100 text-orange-500", icon: "+", href: "/accounts" },
+  { label: "Buy Airtime", color: "bg-sky-100 text-sky-600", icon: "▯", href: "/transfer" },
+  { label: "More", color: "bg-slate-100 text-slate-500", icon: "⌘", href: "/analytics" },
 ]
 
 const transactions = [
@@ -38,11 +43,39 @@ const transactions = [
 ]
 
 export default function DashboardPage() {
+  const [userName, setUserName] = useState("Illias")
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("bankspace_user")
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed.name) {
+          const firstName = parsed.name.trim().split(" ")[0]
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setUserName(firstName)
+        }
+      }
+    } catch {
+      // Ignore JSON parse error
+    }
+
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user?.name) {
+          const firstName = data.user.name.trim().split(" ")[0]
+          setUserName(firstName)
+        }
+      })
+      .catch(() => null)
+  }, [])
+
   return (
     <div>
       <div className="grid gap-8 xl:grid-cols-[1.1fr_.9fr]">
         <section className="flex flex-col justify-center">
-          <p className="mb-4 text-slate-500">Welcome back, Illias</p>
+          <p className="mb-4 text-slate-500 font-semibold">Welcome back, <span className="text-slate-900 font-bold">{userName}</span> 👋</p>
           <h1 className="max-w-xl text-5xl font-black leading-tight tracking-tight md:text-6xl">
             Smart banking <br />
             for a{" "}
@@ -56,12 +89,12 @@ export default function DashboardPage() {
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <button className="rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-indigo-500/25">
+            <Link href="/transfer" className="rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-indigo-500/25 hover:opacity-95 transition-opacity">
               Send Money
-            </button>
-            <button className="rounded-2xl border border-slate-200 bg-white px-7 py-4 text-sm font-semibold text-slate-700 shadow-sm">
+            </Link>
+            <Link href="/analytics" className="rounded-2xl border border-slate-200 bg-white px-7 py-4 text-sm font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition-colors">
               View Analytics
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -92,13 +125,14 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-10 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <h2 className="mb-5 font-bold">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
             {quickActions.map((action) => (
-              <button
+              <Link
                 key={action.label}
-                className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                href={action.href}
+                className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-xs transition hover:-translate-y-1 hover:shadow-md"
               >
                 <span
                   className={`mx-auto grid h-12 w-12 place-items-center rounded-full text-xl ${action.color}`}
@@ -108,12 +142,12 @@ export default function DashboardPage() {
                 <span className="mt-3 block text-xs font-semibold">
                   {action.label}
                 </span>
-              </button>
+              </Link>
             ))}
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="font-bold">Spending Overview</h2>
             <span className="text-xs font-semibold text-slate-500">
@@ -148,12 +182,12 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-bold">Recent Transactions</h2>
-            <a className="text-xs font-semibold text-[#3f3cff]" href="#">
+            <Link className="text-xs font-semibold text-[#3f3cff]" href="/transactions">
               View All
-            </a>
+            </Link>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -170,12 +204,12 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="font-bold">Savings Goals</h2>
-            <a className="text-xs font-semibold text-[#3f3cff]" href="#">
+            <Link className="text-xs font-semibold text-[#3f3cff]" href="/savings">
               View All
-            </a>
+            </Link>
           </div>
 
           <div className="flex gap-4">

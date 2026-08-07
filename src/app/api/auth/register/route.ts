@@ -3,13 +3,13 @@ import { registerUser, loginUser } from "@/lib/auth"
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json()
+    const { name, email, password, phone } = await request.json()
 
     if (!name || !email || !password) {
-      return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
+      return NextResponse.json({ message: "Missing required fields (name, email, password)" }, { status: 400 })
     }
 
-    const result = await registerUser(name, email, password)
+    const result = await registerUser(name, email, password, phone)
     const loginResult = await loginUser(email, password)
 
     const response = NextResponse.json({ user: result.user }, { status: 201 })

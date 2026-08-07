@@ -12,7 +12,7 @@ import {
   TrendingUp,
   PiggyBank,
   PieChart,
-  User,
+  User as UserIcon,
   Settings,
   Search,
   Bell,
@@ -35,7 +35,7 @@ const navItems = [
   { href: "/savings", label: "Savings", icon: PiggyBank },
   { href: "/budgets", label: "Budgets", icon: PieChart },
   { href: "/analytics", label: "Analytics", icon: PieChart },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/profile", label: "Profile", icon: UserIcon },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
@@ -50,6 +50,36 @@ export default function DashboardLayout({
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Dynamic user state
+  const [user, setUser] = useState<{ name: string; email: string; phone?: string }>({
+    name: "Illias Omotayo",
+    email: "illias.o@bankspace.com",
+  })
+
+  // Load user from localStorage & verify via /api/auth/me
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("bankspace_user")
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed.name) setUser(parsed)
+      }
+    } catch {
+      // Ignore JSON parse error
+    }
+
+    // Fetch live user from database session
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user?.name) {
+          setUser(data.user)
+          localStorage.setItem("bankspace_user", JSON.stringify(data.user))
+        }
+      })
+      .catch(() => null)
+  }, [])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -68,11 +98,24 @@ export default function DashboardLayout({
     } catch {
       // Fallback manual cookie clear
     }
+    localStorage.removeItem("bankspace_user")
     document.cookie = "auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
     setUserDropdownOpen(false)
     router.push("/?auth=login")
     router.refresh()
   }
+
+  // Compute initials & short name
+  const nameParts = (user.name || "User").trim().split(" ")
+  const initials =
+    nameParts.length >= 2
+      ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase()
+      : (nameParts[0][0] || "U").toUpperCase()
+
+  const shortName =
+    nameParts.length >= 2
+      ? `${nameParts[0]} ${nameParts[1][0]}.`
+      : nameParts[0]
 
   return (
     <main className="min-h-screen bg-[#f8f9ff] text-slate-950 font-sans">
@@ -254,10 +297,10 @@ export default function DashboardLayout({
                   className="flex items-center gap-2.5 rounded-full border border-slate-200/80 bg-white p-1 pr-3 shadow-xs hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-[#3f3cff]/20"
                 >
                   <div className="grid h-8 w-8 place-items-center rounded-full bg-linear-to-br from-[#7257ff] to-[#4335eb] font-bold text-xs text-white">
-                    IO
+                    {initials}
                   </div>
                   <div className="hidden md:block text-left text-xs">
-                    <p className="font-bold text-slate-900 leading-tight">Illias O.</p>
+                    <p className="font-bold text-slate-900 leading-tight">{shortName}</p>
                     <p className="text-[10px] text-emerald-600 font-medium">Verified User</p>
                   </div>
                   <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${userDropdownOpen ? "rotate-180 text-[#3f3cff]" : ""}`} />
@@ -270,11 +313,11 @@ export default function DashboardLayout({
                     <div className="rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-3.5 mb-2">
                       <div className="flex items-center gap-3">
                         <div className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-[#7257ff] to-[#4335eb] font-bold text-xs text-white shadow-xs">
-                          IO
+                          {initials}
                         </div>
                         <div className="overflow-hidden">
-                          <p className="font-bold text-slate-900 text-xs truncate">Illias Omotayo</p>
-                          <p className="text-[11px] text-slate-500 truncate">illias.o@bankspace.com</p>
+                          <p className="font-bold text-slate-900 text-xs truncate">{user.name}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{user.email}</p>
                         </div>
                       </div>
                       <div className="mt-2.5 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[10px] font-semibold text-emerald-700">
@@ -292,7 +335,7 @@ export default function DashboardLayout({
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                       >
-                        <User className="h-4 w-4 text-[#3f3cff]" />
+                        <UserIcon className="h-4 w-4 text-[#3f3cff]" />
                         <span>View Profile</span>
                       </Link>
 
