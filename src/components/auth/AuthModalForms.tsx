@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react"
-import { Eye, EyeOff, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Sparkles, KeyRound, CheckCircle2 } from "lucide-react"
+import { Eye, EyeOff, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, KeyRound, CheckCircle2 } from "lucide-react"
 
 interface AuthModalFormsProps {
   initialMode: "login" | "register"
@@ -46,8 +46,8 @@ function AppleIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export default function AuthModalForms({ initialMode, onSwitchMode, onSuccess }: AuthModalFormsProps) {
   const [mode, setMode] = useState<FormMode>(initialMode)
-  const [email, setEmail] = useState(initialMode === "login" ? "user@bankite.com" : "")
-  const [password, setPassword] = useState(initialMode === "login" ? "password123" : "")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -65,16 +65,6 @@ export default function AuthModalForms({ initialMode, onSwitchMode, onSuccess }:
     if (newMode === "login" || newMode === "register") {
       onSwitchMode(newMode)
     }
-    if (newMode === "login" && !email) {
-      setEmail("user@bankite.com")
-      setPassword("password123")
-    }
-  }
-
-  const fillDemoCredentials = () => {
-    setEmail("user@bankite.com")
-    setPassword("password123")
-    setError("")
   }
 
   const handleOAuthLogin = async (provider: "google" | "apple") => {
@@ -261,21 +251,6 @@ export default function AuthModalForms({ initialMode, onSwitchMode, onSuccess }:
             </span>
           </div>
         </div>
-      )}
-
-      {/* Demo Credentials Quick Fill Button */}
-      {mode === "login" && (
-        <button
-          type="button"
-          onClick={fillDemoCredentials}
-          className="w-full flex items-center justify-between rounded-2xl bg-linear-to-br from-[#efeaff] to-[#f5f3ff] p-3 border border-violet-200 text-xs font-bold text-[#3f3cff] hover:bg-violet-100/70 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#3f3cff]" />
-            <span>Use Demo Account Credentials</span>
-          </div>
-          <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-violet-200">1-Click Fill</span>
-        </button>
       )}
 
       {/* Alerts */}
