@@ -8,20 +8,22 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state")
   const error = url.searchParams.get("error")
 
-  // Handle user cancellation or provider error
+  // 1. Handle user cancellation or Google authorization denial
   if (error) {
-    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(error), request.url))
+    const userError = error === "access_denied" ? "Google sign-in was cancelled" : "Google authentication failed"
+    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(userError), request.url))
   }
 
+  // 2. Validate state parameter for CSRF protection
   const cookieStore = await cookies()
   const savedState = cookieStore.get("oauth_state")?.value
 
   if (!state || !savedState || state !== savedState) {
-    return NextResponse.redirect(new URL("/?auth=login&error=invalid_state", request.url))
+    return NextResponse.redirect(new URL("/?auth=login&error=Invalid+CSRF+state.+Please+try+logging+in+again", request.url))
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/?auth=login&error=missing_code", request.url))
+    return NextResponse.redirect(new URL("/?auth=login&error=Missing+authorization+code+from+Google", request.url))
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -29,7 +31,7 @@ export async function GET(request: Request) {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${url.origin}/api/auth/callback/google`
 
   try {
-    // Exchange authorization code for tokens
+    // 3. Exchange authorization code for Google access & ID tokens
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -45,10 +47,10 @@ export async function GET(request: Request) {
     const tokenData = await tokenRes.json()
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      throw new Error(tokenData.error_description || "Failed to retrieve access token from Google")
+      throw new Error(tokenData.error_description || "Failed to exchange authorization code with Google")
     }
 
-    // Fetch Google user profile
+    // 4. Retrieve verified Google user profile
     const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     })
@@ -56,12 +58,13 @@ export async function GET(request: Request) {
     const profile = await profileRes.json()
 
     if (!profile.sub || !profile.email) {
-      throw new Error("Invalid user profile returned from Google")
+      throw new Error("Google user profile did not include email address or provider ID")
     }
 
-    // Extract name from Google profile (given_name / name)
+    // Determine user display name and first name fallback
     const displayName = profile.name || profile.given_name || "Google User"
 
+    // 5. Look up or create application User and Account in PostgreSQL
     const { token, user } = await findOrCreateOAuthAccount({
       provider: "google",
       providerAccountId: profile.sub,
@@ -74,20 +77,23 @@ export async function GET(request: Request) {
       idToken: tokenData.id_token,
     })
 
+    // 6. Create authenticated session cookie and redirect directly to /dashboard
     const response = NextResponse.redirect(new URL("/dashboard", request.url))
+
     response.cookies.set("auth", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 60 * 24 * 7, // 7 days
     })
 
+    // Clear state cookie
     response.cookies.set("oauth_state", "", { maxAge: 0, path: "/" })
 
     return response
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Google OAuth authentication failed"
-    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(message), request.url))
+    const safeErrorMessage = err instanceof Error ? err.message : "Google authentication error"
+    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(safeErrorMessage), request.url))
   }
 }

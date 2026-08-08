@@ -43,15 +43,16 @@ const transactions = [
 ]
 
 export default function DashboardPage() {
-  const [userName, setUserName] = useState("Illias")
+  const [userName, setUserName] = useState("Google")
 
   useEffect(() => {
+    // 1. Initial local storage check for instant load
     try {
       const stored = localStorage.getItem("bankspace_user")
       if (stored) {
         const parsed = JSON.parse(stored)
         if (parsed.name) {
-          const firstName = parsed.name.trim().split(" ")[0]
+          const firstName = parsed.name.trim().split(/\s+/)[0] || "Google"
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setUserName(firstName)
         }
@@ -60,11 +61,12 @@ export default function DashboardPage() {
       // Ignore JSON parse error
     }
 
+    // 2. Authoritative database fetch from /api/auth/me
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.user?.name) {
-          const firstName = data.user.name.trim().split(" ")[0]
+          const firstName = data.user.name.trim().split(/\s+/)[0] || "Google"
           setUserName(firstName)
         }
       })
@@ -75,7 +77,9 @@ export default function DashboardPage() {
     <div>
       <div className="grid gap-8 xl:grid-cols-[1.1fr_.9fr]">
         <section className="flex flex-col justify-center">
-          <p className="mb-4 text-slate-500 font-semibold">Welcome back, <span className="text-slate-900 font-bold">{userName}</span> 👋</p>
+          <p className="mb-4 text-slate-500 font-semibold">
+            Welcome back, <span className="text-slate-900 font-bold">{userName}</span> 👋
+          </p>
           <h1 className="max-w-xl text-5xl font-black leading-tight tracking-tight md:text-6xl">
             Smart banking <br />
             for a{" "}
