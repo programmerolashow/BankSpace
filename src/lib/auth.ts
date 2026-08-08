@@ -108,6 +108,61 @@ export async function loginUser(email: string, password: string, ipAddress?: str
   }
 }
 
+export async function loginWithOAuth(provider: "google" | "apple", inputEmail?: string, inputName?: string) {
+  const { client } = getPrismaClient()
+
+  const defaultEmail =
+    provider === "google" ? "google.user@bankspace.com" : "apple.user@bankspace.com"
+  const defaultName = provider === "google" ? "Google User" : "Apple User"
+
+  const normalizedEmail = (inputEmail || defaultEmail).toLowerCase().trim()
+  const userName = inputName || defaultName
+
+  let user = await client.user.findUnique({
+    where: { email: normalizedEmail },
+  })
+
+  if (!user) {
+    const dummyHash = await bcrypt.hash("oauth_authenticated_" + Date.now(), 10)
+    user = await client.user.create({
+      data: {
+        name: userName,
+        email: normalizedEmail,
+        passwordHash: dummyHash,
+        isVerified: true,
+      },
+    })
+  }
+
+  const userId = String(user.id)
+  const token = jwt.sign({ sub: userId, email: user.email }, JWT_SECRET, { expiresIn: "7d" })
+
+  try {
+    if (client.session && typeof client.session.create === "function") {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      await client.session.create({
+        data: {
+          userId,
+          token,
+          expiresAt,
+        },
+      })
+    }
+  } catch (err) {
+    console.warn("[OAuth Session Recording Notice]:", err instanceof Error ? err.message : err)
+  }
+
+  return {
+    token,
+    user: {
+      id: userId,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+    },
+  }
+}
+
 export async function generatePasswordResetToken(email: string) {
   const normalizedEmail = email.toLowerCase().trim()
   const { client } = getPrismaClient()
