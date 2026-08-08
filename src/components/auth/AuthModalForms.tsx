@@ -67,35 +67,11 @@ export default function AuthModalForms({ initialMode, onSwitchMode, onSuccess }:
     }
   }
 
-  const handleOAuthLogin = async (provider: "google" | "apple") => {
+  const handleOAuthLogin = (provider: "google" | "apple") => {
     setError("")
     setSuccessMessage("")
     setOauthLoading(provider)
-
-    try {
-      const response = await fetch("/api/auth/oauth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || `${provider === "google" ? "Google" : "Apple"} sign-in failed`)
-      }
-
-      if (data.user) {
-        localStorage.setItem("bankspace_user", JSON.stringify(data.user))
-      }
-
-      if (onSuccess) onSuccess()
-      window.location.href = "/dashboard"
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Social authentication failed")
-    } finally {
-      setOauthLoading(null)
-    }
+    window.location.href = provider === "google" ? "/api/auth/google" : "/api/auth/apple"
   }
 
   const handleLoginOrRegister = async (e: React.FormEvent) => {
@@ -230,7 +206,7 @@ export default function AuthModalForms({ initialMode, onSwitchMode, onSuccess }:
               className="flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white py-3 px-3 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-60"
             >
               <GoogleIcon className="h-4.5 w-4.5 shrink-0" />
-              <span>{oauthLoading === "google" ? "Connecting..." : "Google"}</span>
+              <span>{oauthLoading === "google" ? "Redirecting..." : "Google"}</span>
             </button>
 
             <button
@@ -240,7 +216,7 @@ export default function AuthModalForms({ initialMode, onSwitchMode, onSuccess }:
               className="flex items-center justify-center gap-2.5 rounded-2xl border border-slate-900 bg-slate-900 py-3 px-3 text-xs font-bold text-white shadow-xs hover:bg-slate-800 transition-all disabled:opacity-60"
             >
               <AppleIcon className="h-4.5 w-4.5 shrink-0 text-white" />
-              <span>{oauthLoading === "apple" ? "Connecting..." : "Apple Cloud"}</span>
+              <span>{oauthLoading === "apple" ? "Redirecting..." : "Apple Cloud"}</span>
             </button>
           </div>
 

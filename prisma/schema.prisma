@@ -1,3 +1,6 @@
+// This is your Prisma schema file for BankSpace PostgreSQL database
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,21 +10,46 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
-  id           String               @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
-  email        String               @unique
-  passwordHash String               @map("password_hash")
-  role         Role                 @default(USER)
-  isVerified   Boolean              @default(true) @map("is_verified")
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  role         Role      @default(USER)
+  isVerified   Boolean   @default(true) @map("is_verified")
   phone        String?
-  avatarUrl    String?              @map("avatar_url")
-  createdAt    DateTime             @default(now()) @map("created_at")
-  updatedAt    DateTime             @updatedAt @map("updated_at")
-  resetTokens  PasswordResetToken[]
+  avatarUrl    String?   @map("avatar_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  accounts     Account[]
   sessions     Session[]
+  resetTokens  PasswordResetToken[]
 
   @@map("users")
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  accessToken       String?  @map("access_token")
+  refreshToken      String?  @map("refresh_token")
+  expiresAt         Int?     @map("expires_at")
+  idToken           String?  @map("id_token")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
 model Session {
@@ -32,6 +60,7 @@ model Session {
   userAgent String?  @map("user_agent")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
@@ -43,12 +72,8 @@ model PasswordResetToken {
   token     String   @unique
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
-}
-
-enum Role {
-  USER
-  ADMIN
 }

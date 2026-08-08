@@ -10,7 +10,20 @@ export type AuthUser = {
   name: string
   email: string
   phone?: string | null
+  avatarUrl?: string | null
   role?: string
+}
+
+export type OAuthProfilePayload = {
+  provider: "google" | "apple"
+  providerAccountId: string
+  email: string
+  name?: string
+  avatarUrl?: string
+  accessToken?: string
+  refreshToken?: string
+  expiresAt?: number
+  idToken?: string
 }
 
 export async function registerUser(name: string, email: string, password: string, phone?: string) {
@@ -56,7 +69,7 @@ export async function loginUser(email: string, password: string, ipAddress?: str
       token,
       user: {
         id: userId,
-        name: "Illias Omotayo",
+        name: "Illias Olanrewaju",
         email: normalizedEmail,
       },
     }
@@ -67,7 +80,7 @@ export async function loginUser(email: string, password: string, ipAddress?: str
     where: { email: normalizedEmail },
   })
 
-  if (!user) {
+  if (!user || !user.passwordHash) {
     throw new Error("Invalid credentials")
   }
 
@@ -108,59 +121,130 @@ export async function loginUser(email: string, password: string, ipAddress?: str
   }
 }
 
-export async function loginWithOAuth(provider: "google" | "apple", inputEmail?: string, inputName?: string) {
+export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
   const { client } = getPrismaClient()
+  const normalizedEmail = payload.email.toLowerCase().trim()
 
-  const defaultEmail =
-    provider === "google" ? "google.user@bankspace.com" : "apple.user@bankspace.com"
-  const defaultName = provider === "google" ? "Google User" : "Apple User"
+  // 1. Check if OAuth Account already exists for (provider, providerAccountId)
+  if (client.account && typeof client.account.findUnique === "function") {
+    const existingAccount = await client.account.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: payload.provider,
+          providerAccountId: payload.providerAccountId,
+        },
+      },
+      include: { user: true },
+    })
 
-  const normalizedEmail = (inputEmail || defaultEmail).toLowerCase().trim()
-  const userName = inputName || defaultName
+    if (existingAccount && existingAccount.user) {
+      const user = existingAccount.user
+      const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" })
 
-  let user = await client.user.findUnique({
+      try {
+        if (client.session && typeof client.session.create === "function") {
+          await client.session.create({
+            data: {
+              userId: user.id,
+              token,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          })
+        }
+      } catch (e) {
+        console.warn("[OAuth Session Recording Notice]:", e)
+      }
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+        },
+      }
+    }
+  }
+
+  // 2. Check if a User already exists with this email address
+  let targetUser = await client.user.findUnique({
     where: { email: normalizedEmail },
   })
 
-  if (!user) {
-    const dummyHash = await bcrypt.hash("oauth_authenticated_" + Date.now(), 10)
-    user = await client.user.create({
+  // 3. Create User if not found
+  if (!targetUser) {
+    targetUser = await client.user.create({
       data: {
-        name: userName,
+        name: payload.name || (payload.provider === "google" ? "Google User" : "Apple User"),
         email: normalizedEmail,
-        passwordHash: dummyHash,
         isVerified: true,
+        avatarUrl: payload.avatarUrl || null,
       },
     })
   }
 
-  const userId = String(user.id)
-  const token = jwt.sign({ sub: userId, email: user.email }, JWT_SECRET, { expiresIn: "7d" })
+  // 4. Link Account to targetUser
+  if (client.account && typeof client.account.create === "function") {
+    try {
+      await client.account.create({
+        data: {
+          userId: targetUser.id,
+          provider: payload.provider,
+          providerAccountId: payload.providerAccountId,
+          accessToken: payload.accessToken || null,
+          refreshToken: payload.refreshToken || null,
+          expiresAt: payload.expiresAt || null,
+          idToken: payload.idToken || null,
+        },
+      })
+    } catch (e) {
+      console.warn("[Account Link Warning]:", e)
+    }
+  }
+
+  // 5. Generate session token & record session in NeonDB
+  const userId = String(targetUser.id)
+  const token = jwt.sign({ sub: userId, email: targetUser.email }, JWT_SECRET, { expiresIn: "7d" })
 
   try {
     if (client.session && typeof client.session.create === "function") {
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       await client.session.create({
         data: {
           userId,
           token,
-          expiresAt,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
       })
     }
-  } catch (err) {
-    console.warn("[OAuth Session Recording Notice]:", err instanceof Error ? err.message : err)
+  } catch (e) {
+    console.warn("[Session Recording Notice]:", e)
   }
 
   return {
     token,
     user: {
       id: userId,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
+      name: targetUser.name,
+      email: targetUser.email,
+      avatarUrl: targetUser.avatarUrl,
     },
   }
+}
+
+export async function loginWithOAuth(provider: "google" | "apple", inputEmail?: string, inputName?: string) {
+  const defaultProviderAccountId =
+    provider === "google" ? "google_sub_109283741" : "apple_sub_984712039"
+  const defaultEmail =
+    provider === "google" ? "google.user@bankspace.com" : "apple.user@bankspace.com"
+  const defaultName = provider === "google" ? "Google User" : "Apple User"
+
+  return findOrCreateOAuthAccount({
+    provider,
+    providerAccountId: defaultProviderAccountId,
+    email: inputEmail || defaultEmail,
+    name: inputName || defaultName,
+  })
 }
 
 export async function generatePasswordResetToken(email: string) {
