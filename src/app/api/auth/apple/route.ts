@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
+import { getAppOrigin, redirectApp } from "@/lib/auth"
 
 export async function GET(request: Request) {
+  const origin = getAppOrigin(request)
   const clientId = process.env.APPLE_CLIENT_ID
-  const redirectUri = process.env.APPLE_REDIRECT_URI || `${new URL(request.url).origin}/api/auth/callback/apple`
+  const redirectUri = process.env.APPLE_REDIRECT_URI || `${origin}/api/auth/callback/apple`
 
   // Fallback to simulation if APPLE_CLIENT_ID is unconfigured
   if (!clientId || clientId.includes("your-apple-service-id")) {
-    const response = NextResponse.redirect(new URL("/api/auth/oauth-fallback?provider=apple", request.url))
-    return response
+    return redirectApp("/api/auth/oauth-fallback?provider=apple", request)
   }
 
   const state = crypto.randomBytes(32).toString("hex")

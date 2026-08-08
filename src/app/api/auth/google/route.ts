@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
+import { getAppOrigin, redirectApp } from "@/lib/auth"
 
 export async function GET(request: Request) {
-  const url = new URL(request.url)
+  const origin = getAppOrigin(request)
   const clientId = process.env.GOOGLE_CLIENT_ID
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${url.origin}/api/auth/callback/google`
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${origin}/api/auth/callback/google`
 
   // Fallback to simulation endpoint if client ID is missing in dev environment
   if (!clientId || clientId.includes("your-google-client-id")) {
-    return NextResponse.redirect(new URL("/api/auth/oauth-fallback?provider=google", request.url))
+    return redirectApp("/api/auth/oauth-fallback?provider=google", request)
   }
 
   // Generate cryptographically secure state parameter for CSRF validation

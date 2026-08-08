@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import crypto from "crypto"
+import { NextResponse } from "next/server"
 import { getPrismaClient } from "./prisma"
 
 const JWT_SECRET = process.env.JWT_SECRET || "bankite-dev-secret"
@@ -24,6 +25,28 @@ export type OAuthProfilePayload = {
   refreshToken?: string
   expiresAt?: number
   idToken?: string
+}
+
+export function getAppOrigin(request: Request): string {
+  const envUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL
+  if (envUrl && !envUrl.includes("0.0.0.0")) {
+    return envUrl.replace(/\/$/, "")
+  }
+
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || ""
+  if (host && !host.includes("0.0.0.0")) {
+    const proto = request.headers.get("x-forwarded-proto") || "http"
+    return `${proto}://${host}`
+  }
+
+  const url = new URL(request.url)
+  return url.origin.replace("0.0.0.0", "localhost")
+}
+
+export function redirectApp(path: string, request: Request): NextResponse {
+  const origin = getAppOrigin(request)
+  const targetUrl = new URL(path, origin).toString()
+  return NextResponse.redirect(targetUrl)
 }
 
 export async function registerUser(name: string, email: string, password: string, phone?: string) {

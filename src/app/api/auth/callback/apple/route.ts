@@ -2,10 +2,11 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import jwt from "jsonwebtoken"
-import { findOrCreateOAuthAccount } from "@/lib/auth"
+import { findOrCreateOAuthAccount, getAppOrigin, redirectApp } from "@/lib/auth"
 
 async function handleAppleCallback(request: Request) {
   const url = new URL(request.url)
+  const origin = getAppOrigin(request)
   let code: string | null = null
   let state: string | null = null
   let idTokenStr: string | null = null
@@ -31,7 +32,7 @@ async function handleAppleCallback(request: Request) {
   const savedState = cookieStore.get("oauth_state")?.value
 
   if (!state || !savedState || state !== savedState) {
-    return NextResponse.redirect(new URL("/?auth=login&error=invalid_state", request.url))
+    return redirectApp("/?auth=login&error=invalid_state", request)
   }
 
   try {
@@ -75,7 +76,9 @@ async function handleAppleCallback(request: Request) {
       idToken: idTokenStr || undefined,
     })
 
-    const response = NextResponse.redirect(new URL("/dashboard", request.url))
+    const dashboardUrl = new URL("/dashboard", origin).toString()
+    const response = NextResponse.redirect(dashboardUrl)
+
     response.cookies.set("auth", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -90,7 +93,7 @@ async function handleAppleCallback(request: Request) {
     return response
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sign in with Apple failed"
-    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(message), request.url))
+    return redirectApp("/?auth=login&error=" + encodeURIComponent(message), request)
   }
 }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { findOrCreateOAuthAccount } from "@/lib/auth"
+import { findOrCreateOAuthAccount, getAppOrigin, redirectApp } from "@/lib/auth"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   // 1. Handle user cancellation or Google authorization denial
   if (error) {
     const userError = error === "access_denied" ? "Google sign-in was cancelled" : "Google authentication failed"
-    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(userError), request.url))
+    return redirectApp("/?auth=login&error=" + encodeURIComponent(userError), request)
   }
 
   // 2. Validate state parameter for CSRF protection
@@ -19,16 +19,17 @@ export async function GET(request: Request) {
   const savedState = cookieStore.get("oauth_state")?.value
 
   if (!state || !savedState || state !== savedState) {
-    return NextResponse.redirect(new URL("/?auth=login&error=Invalid+CSRF+state.+Please+try+logging+in+again", request.url))
+    return redirectApp("/?auth=login&error=Invalid+CSRF+state.+Please+try+logging+in+again", request)
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/?auth=login&error=Missing+authorization+code+from+Google", request.url))
+    return redirectApp("/?auth=login&error=Missing+authorization+code+from+Google", request)
   }
 
+  const origin = getAppOrigin(request)
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${url.origin}/api/auth/callback/google`
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${origin}/api/auth/callback/google`
 
   try {
     // 3. Exchange authorization code for Google access & ID tokens
@@ -61,11 +62,11 @@ export async function GET(request: Request) {
       throw new Error("Google user profile did not include email address or provider ID")
     }
 
-    // Determine user display name and first name fallback
+    // Determine user display name
     const displayName = profile.name || profile.given_name || "Google User"
 
     // 5. Look up or create application User and Account in PostgreSQL
-    const { token, user } = await findOrCreateOAuthAccount({
+    const { token } = await findOrCreateOAuthAccount({
       provider: "google",
       providerAccountId: profile.sub,
       email: profile.email,
@@ -77,8 +78,9 @@ export async function GET(request: Request) {
       idToken: tokenData.id_token,
     })
 
-    // 6. Create authenticated session cookie and redirect directly to /dashboard
-    const response = NextResponse.redirect(new URL("/dashboard", request.url))
+    // 6. Create authenticated session cookie and redirect directly to /dashboard on valid origin
+    const dashboardUrl = new URL("/dashboard", origin).toString()
+    const response = NextResponse.redirect(dashboardUrl)
 
     response.cookies.set("auth", token, {
       httpOnly: true,
@@ -94,6 +96,6 @@ export async function GET(request: Request) {
     return response
   } catch (err) {
     const safeErrorMessage = err instanceof Error ? err.message : "Google authentication error"
-    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(safeErrorMessage), request.url))
+    return redirectApp("/?auth=login&error=" + encodeURIComponent(safeErrorMessage), request)
   }
 }

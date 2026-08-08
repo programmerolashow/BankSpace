@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server"
-import { loginWithOAuth } from "@/lib/auth"
+import { loginWithOAuth, getAppOrigin, redirectApp } from "@/lib/auth"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const provider = (url.searchParams.get("provider") as "google" | "apple") || "google"
+  const origin = getAppOrigin(request)
 
   try {
-    const { token, user } = await loginWithOAuth(provider)
+    const { token } = await loginWithOAuth(provider)
 
-    const response = NextResponse.redirect(new URL("/dashboard", request.url))
+    const dashboardUrl = new URL("/dashboard", origin).toString()
+    const response = NextResponse.redirect(dashboardUrl)
 
     response.cookies.set("auth", token, {
       httpOnly: true,
@@ -21,6 +23,6 @@ export async function GET(request: Request) {
     return response
   } catch (error) {
     const message = error instanceof Error ? error.message : "OAuth login failed"
-    return NextResponse.redirect(new URL("/?auth=login&error=" + encodeURIComponent(message), request.url))
+    return redirectApp("/?auth=login&error=" + encodeURIComponent(message), request)
   }
 }
