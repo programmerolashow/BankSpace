@@ -81,6 +81,17 @@ export default function DashboardLayout({
       .catch(() => null)
   }, [])
 
+  // Close mobile sidebar on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && mobileOpen) {
+        setMobileOpen(false)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [mobileOpen])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -175,23 +186,23 @@ export default function DashboardLayout({
           </div>
         </aside>
 
-        {/* Mobile Backdrop */}
+        {/* Mobile & Tablet Backdrop Overlay */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs lg:hidden transition-opacity"
+            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs lg:hidden transition-opacity"
             onClick={() => setMobileOpen(false)}
           />
         )}
 
-        {/* Mobile Drawer Navigation */}
+        {/* Mobile & Tablet Slide-Over Drawer Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-200/70 bg-white px-5 py-6 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out lg:hidden ${
+          className={`fixed inset-y-0 left-0 z-50 flex w-72 sm:w-80 flex-col border-r border-slate-200/70 bg-white px-5 py-6 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out lg:hidden ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <div className="mb-6 flex items-center justify-between gap-3">
             <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3">
-              <div className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-[#7c4dff] to-[#2454ff] font-bold text-white">
+              <div className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-[#7c4dff] to-[#2454ff] font-bold text-white shadow-md">
                 B
               </div>
               <span className="text-xl font-bold tracking-tight text-slate-900">
@@ -200,7 +211,7 @@ export default function DashboardLayout({
             </Link>
             <button
               type="button"
-              className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100"
+              className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 transition-colors"
               onClick={() => setMobileOpen(false)}
               aria-label="Close navigation"
             >
@@ -208,7 +219,7 @@ export default function DashboardLayout({
             </button>
           </div>
 
-          <nav className="space-y-1 overflow-y-auto flex-1">
+          <nav className="space-y-1 overflow-y-auto pr-1 flex-1 custom-scrollbar">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(`${item.href}/`))
@@ -218,10 +229,10 @@ export default function DashboardLayout({
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
                     isActive
-                      ? "bg-[#eeeeff] text-[#3f3cff]"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-[#eeeeff] text-[#3f3cff] shadow-xs"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
                   <Icon className={`h-4.5 w-4.5 ${isActive ? "text-[#3f3cff]" : "text-slate-400"}`} />
@@ -231,7 +242,7 @@ export default function DashboardLayout({
             })}
           </nav>
 
-          <div className="mt-4 rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-4">
+          <div className="mt-4 rounded-2xl bg-linear-to-br from-[#f0edff] to-[#e9ecff] p-4 shadow-xs">
             <div className="flex items-center gap-2 text-[#3f3cff] font-bold text-sm">
               <Sparkles className="h-4 w-4" />
               <span>Upgrade to Premium</span>
@@ -250,17 +261,18 @@ export default function DashboardLayout({
           {/* Header */}
           <header className="mb-8 flex items-center justify-between gap-4 sticky top-0 z-30 bg-[#f8f9ff]/90 py-3 backdrop-blur-md">
             <div className="flex items-center gap-3">
+              {/* Hamburger Button for Mobile & Tablet screens (< lg breakpoint) */}
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#3f3cff] shadow-xs hover:bg-slate-50 lg:hidden"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#3f3cff] shadow-xs hover:bg-slate-50 transition-colors lg:hidden"
                 onClick={() => setMobileOpen(true)}
-                aria-label="Open navigation"
+                aria-label="Open navigation sidebar"
               >
                 <Menu className="h-5 w-5" />
               </button>
 
               {/* Search Bar */}
-              <div className="relative hidden sm:flex h-11 w-72 md:w-96 items-center rounded-full border border-slate-200/90 bg-white pl-4 pr-1.5 shadow-xs focus-within:border-[#3f3cff] focus-within:ring-2 focus-within:ring-[#3f3cff]/10 transition-all">
+              <div className="relative hidden sm:flex h-11 w-64 md:w-80 lg:w-96 items-center rounded-full border border-slate-200/90 bg-white pl-4 pr-1.5 shadow-xs focus-within:border-[#3f3cff] focus-within:ring-2 focus-within:ring-[#3f3cff]/10 transition-all">
                 <Search className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
                 <input
                   type="text"
@@ -289,7 +301,7 @@ export default function DashboardLayout({
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
 
-              {/* Profile Avatar Button with Dropdown at the Very Edge */}
+              {/* Profile Avatar Button with Dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
