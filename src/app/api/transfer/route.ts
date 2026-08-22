@@ -13,7 +13,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    // 1. Authenticate User
+    // 1. Authenticate User Session
     const cookieStore = await cookies()
     const authToken = cookieStore.get("auth")?.value
 
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       return apiUnauthorized(error || "Invalid or expired session")
     }
 
+    // 2. Read Idempotency Key
     const idempotencyKey =
       request.headers.get("x-idempotency-key") ||
       request.headers.get("idempotency-key") ||
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
     const referenceKey = idempotencyKey || customReference || ("TXN_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000))
 
-    // 2. Idempotency Conflict Check
+    // 3. Idempotency Unique Reference Guard (Prevent Double Click & Refresh)
     const { client } = getPrismaClient()
     if (client.transaction && typeof client.transaction.findUnique === "function") {
       const existingTx = await client.transaction.findUnique({
@@ -49,13 +50,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Recipient Account Validation
+    // 4. Validate Recipient Account
     const sanitizedAccount = String(recipientAccount || "").trim()
     if (!sanitizedAccount || sanitizedAccount.length < 10 || !/^\d+$/.test(sanitizedAccount)) {
       return apiBadRequest("Invalid recipient account number. Must be a valid 10-digit account number.")
     }
 
-    // 4. Amount Validation
+    // 5. Validate Transfer Amount
     const numericAmount = Number(amount)
     if (isNaN(numericAmount) || numericAmount <= 0) {
       return apiBadRequest("Invalid transfer amount. Amount must be greater than ₦0.00.")
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
 
     let createdTx = null
 
-    // 5. Atomic Prisma $transaction
+    // 6. High-Concurrency Race-Condition Proof Prisma $transaction
     if (client.bankAccount && client.transaction && typeof client.$transaction === "function") {
       try {
         createdTx = await client.$transaction(async (tx: any) => {
@@ -83,10 +84,12 @@ export async function POST(request: Request) {
             throw new Error(`Transfer amount exceeds daily transaction limit of ₦${senderAcc.dailyLimit.toLocaleString()}.00.`)
           }
 
+          // Initial check
           if (senderAcc.balance < numericAmount) {
             throw new Error(`Insufficient funds. Available balance: ₦${senderAcc.balance.toLocaleString()}.00.`)
           }
 
+          // Create Transaction Record (Status = PROCESSING)
           const initialTx = await tx.transaction.create({
             data: {
               reference: referenceKey,
@@ -106,9 +109,26 @@ export async function POST(request: Request) {
             },
           })
 
-          const updatedSender = await tx.bankAccount.update({
+          // RACE CONDITION CONCURRENCY GUARD:
+          // Atomically decrement balance with row-level balance >= amount condition guard!
+          const decrementResult = await tx.bankAccount.updateMany({
+            where: {
+              id: senderAcc.id,
+              balance: { gte: numericAmount },
+              status: "ACTIVE",
+            },
+            data: {
+              balance: { decrement: numericAmount },
+            },
+          })
+
+          if (decrementResult.count === 0) {
+            throw new Error("Insufficient funds or concurrent transfer conflict detected.")
+          }
+
+          // Fetch updated sender balance for ledger entry
+          const updatedSender = await tx.bankAccount.findUnique({
             where: { id: senderAcc.id },
-            data: { balance: { decrement: numericAmount } },
           })
 
           if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
@@ -118,19 +138,24 @@ export async function POST(request: Request) {
                 bankAccountId: senderAcc.id,
                 entryType: "DEBIT",
                 amount: numericAmount,
-                balanceAfter: updatedSender.balance,
+                balanceAfter: updatedSender?.balance || 0.0,
               },
             })
           }
 
+          // Check & Credit Internal Recipient
           const recipientAccRecord = await tx.bankAccount.findUnique({
             where: { accountNumber: sanitizedAccount },
           })
 
           if (recipientAccRecord) {
-            const updatedRecipient = await tx.bankAccount.update({
+            await tx.bankAccount.update({
               where: { id: recipientAccRecord.id },
               data: { balance: { increment: numericAmount } },
+            })
+
+            const updatedRecipient = await tx.bankAccount.findUnique({
+              where: { id: recipientAccRecord.id },
             })
 
             if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
@@ -140,7 +165,7 @@ export async function POST(request: Request) {
                   bankAccountId: recipientAccRecord.id,
                   entryType: "CREDIT",
                   amount: numericAmount,
-                  balanceAfter: updatedRecipient.balance,
+                  balanceAfter: updatedRecipient?.balance || 0.0,
                 },
               })
             }
@@ -160,7 +185,7 @@ export async function POST(request: Request) {
           message.includes("Insufficient funds") ||
           message.includes("daily transaction limit") ||
           message.includes("inactive") ||
-          message.includes("account")
+          message.includes("conflict")
         ) {
           return apiBadRequest(message)
         }
