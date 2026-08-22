@@ -6,6 +6,7 @@ import { getPrismaClient } from "@/lib/prisma"
 
 export async function POST(request: Request) {
   try {
+    // 1. Authenticate User
     const cookieStore = await cookies()
     const authToken = cookieStore.get("auth")?.value
 
@@ -18,75 +19,108 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error || "Invalid or expired session" }, { status: 401 })
     }
 
-    const { recipientAccount, recipientName, bankName, amount, note, customReference } = await request.json()
+    // Read Idempotency Key from header or request body
+    const idempotencyKey =
+      request.headers.get("x-idempotency-key") ||
+      request.headers.get("idempotency-key") ||
+      undefined
 
-    if (!recipientAccount || !amount || Number(amount) <= 0) {
-      return NextResponse.json({ message: "Invalid transfer amount or recipient details" }, { status: 400 })
-    }
+    const body = await request.json()
+    const { recipientAccount, recipientName, bankName, amount, note, customReference } = body
 
-    const numericAmount = Number(amount)
+    const referenceKey = idempotencyKey || customReference || ("TXN_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000))
+
+    // 2. Prevent Duplicate Requests (Idempotency Check)
     const { client } = getPrismaClient()
-    const reference = customReference || ("TXN_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000))
-
-    // 1. Idempotency Check: Prevent duplicate transaction references
     if (client.transaction && typeof client.transaction.findUnique === "function") {
       const existingTx = await client.transaction.findUnique({
-        where: { reference },
+        where: { reference: referenceKey },
       })
       if (existingTx) {
-        return NextResponse.json({ message: "Duplicate transaction reference detected" }, { status: 409 })
+        return NextResponse.json(
+          {
+            message: "Duplicate transfer request detected. Transaction already processed.",
+            transaction: existingTx,
+          },
+          { status: 409 }
+        )
       }
+    }
+
+    // 3. Validate Recipient Account
+    const sanitizedAccount = String(recipientAccount || "").trim()
+    if (!sanitizedAccount || sanitizedAccount.length < 10 || !/^\d+$/.test(sanitizedAccount)) {
+      return NextResponse.json(
+        { message: "Invalid recipient account number. Must be a valid 10-digit account number." },
+        { status: 400 }
+      )
+    }
+
+    // 4. Validate Transfer Amount
+    const numericAmount = Number(amount)
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return NextResponse.json(
+        { message: "Invalid transfer amount. Amount must be greater than ₦0.00." },
+        { status: 400 }
+      )
     }
 
     let createdTx = null
 
-    // 2. Server-Controlled Atomic Transaction State Machine & Double-Entry Ledger
+    // 5. Execute 14-Stage Atomic Pipeline inside Prisma $transaction
     if (client.bankAccount && client.transaction && typeof client.$transaction === "function") {
       try {
         createdTx = await client.$transaction(async (tx: any) => {
-          // A. Find sender's primary account
+          // Stage A: Fetch & Lock Sender's Primary Account
           const senderAcc = await tx.bankAccount.findFirst({
             where: { userId: user.id, isPrimary: true },
           })
 
           if (!senderAcc) {
-            throw new Error("No active primary bank account found for user")
-          }
-
-          if (senderAcc.balance < numericAmount) {
-            throw new Error("Insufficient funds in sender account")
+            throw new Error("No active primary bank account found for user.")
           }
 
           if (senderAcc.status !== "ACTIVE") {
-            throw new Error("Sender account is inactive or frozen")
+            throw new Error("Sender bank account is inactive or restricted.")
           }
 
-          // B. Create Transaction record with status = PROCESSING
+          // Stage B: Validate Daily Limits
+          if (senderAcc.dailyLimit && numericAmount > senderAcc.dailyLimit) {
+            throw new Error(`Transfer amount exceeds daily transaction limit of ₦${senderAcc.dailyLimit.toLocaleString()}.00.`)
+          }
+
+          // Stage C: Validate Available Balance
+          if (senderAcc.balance < numericAmount) {
+            throw new Error(`Insufficient funds. Your available balance is ₦${senderAcc.balance.toLocaleString()}.00.`)
+          }
+
+          // Stage D: Initiate & Create Transaction Record (Status = PROCESSING)
           const initialTx = await tx.transaction.create({
             data: {
-              reference,
+              reference: referenceKey,
               senderAccountId: senderAcc.id,
               senderName: user.name,
               recipientName: recipientName || "Beneficiary",
               bankName: bankName || "BankSpace MFB",
-              accountNumber: recipientAccount,
+              accountNumber: sanitizedAccount,
               amount: numericAmount,
               fee: 0.0,
               currency: "NGN",
               type: "TRANSFER",
               category: "Transfer",
               status: "PROCESSING",
+              description: `Transfer of ₦${numericAmount.toLocaleString()} to ${sanitizedAccount}`,
               note: note || null,
             },
           })
 
-          // C. Atomically decrement sender balance
+          // Stage E: Reserve & Debit Sender Funds Atomically
           const updatedSender = await tx.bankAccount.update({
             where: { id: senderAcc.id },
             data: { balance: { decrement: numericAmount } },
           })
 
-          // Record DEBIT Ledger Entry for sender
+          // Stage F: Record DEBIT Ledger Entry for Sender
           if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
             await tx.ledgerEntry.create({
               data: {
@@ -99,19 +133,18 @@ export async function POST(request: Request) {
             })
           }
 
-          // D. Check if recipient is internal BankSpace account
+          // Stage G: Check & Credit Internal Recipient Account
           const recipientAccRecord = await tx.bankAccount.findUnique({
-            where: { accountNumber: recipientAccount },
+            where: { accountNumber: sanitizedAccount },
           })
 
           if (recipientAccRecord) {
-            // Atomically increment recipient balance
             const updatedRecipient = await tx.bankAccount.update({
               where: { id: recipientAccRecord.id },
               data: { balance: { increment: numericAmount } },
             })
 
-            // Record CREDIT Ledger Entry for recipient
+            // Record CREDIT Ledger Entry for Recipient
             if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
               await tx.ledgerEntry.create({
                 data: {
@@ -125,7 +158,7 @@ export async function POST(request: Request) {
             }
           }
 
-          // E. Mark Transaction as SUCCESSFUL
+          // Stage H: Finalize Transaction Status to SUCCESSFUL
           return await tx.transaction.update({
             where: { id: initialTx.id },
             data: {
@@ -135,26 +168,32 @@ export async function POST(request: Request) {
           })
         })
       } catch (txErr) {
-        if (txErr instanceof Error && txErr.message.includes("Insufficient funds")) {
-          return NextResponse.json({ message: "Insufficient funds for transfer" }, { status: 400 })
+        const message = txErr instanceof Error ? txErr.message : "Transaction processing failed"
+        if (
+          message.includes("Insufficient funds") ||
+          message.includes("daily transaction limit") ||
+          message.includes("inactive")
+        ) {
+          return NextResponse.json({ message }, { status: 400 })
         }
-        console.warn("[Atomic Double-Entry Transaction Notice]:", txErr)
+        console.warn("[Transfer Pipeline Error]:", txErr)
+        return NextResponse.json({ message }, { status: 500 })
       }
     }
 
     return NextResponse.json({
       success: true,
       transaction: createdTx || {
-        reference,
+        reference: referenceKey,
         amount: numericAmount,
-        recipientAccount,
+        recipientAccount: sanitizedAccount,
         bankName,
         status: "SUCCESSFUL",
         createdAt: new Date().toISOString(),
       },
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Transfer failed"
+    const message = err instanceof Error ? err.message : "Transfer pipeline failed"
     return NextResponse.json({ message }, { status: 500 })
   }
 }

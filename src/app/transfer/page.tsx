@@ -23,26 +23,43 @@ export default function TransferPage() {
   const [isSuccess, setIsSuccess] = useState(false)
   const [isConfirmModal, setIsConfirmModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
 
   const selectBeneficiary = (b: (typeof beneficiaries)[0]) => {
     setRecipientAcc(b.acc)
     setBankName(b.bank)
+    setErrorMessage("")
   }
 
   const handleTransferSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!recipientAcc || !amount) return
+    setErrorMessage("")
+    if (!recipientAcc || recipientAcc.length < 10) {
+      setErrorMessage("Please enter a valid 10-digit account number.")
+      return
+    }
+    if (!amount || Number(amount) <= 0) {
+      setErrorMessage("Please enter a valid transfer amount greater than ₦0.00.")
+      return
+    }
     setIsConfirmModal(true)
   }
 
   const confirmTransfer = async () => {
     setIsConfirmModal(false)
     setIsLoading(true)
+    setErrorMessage("")
+
+    // Generate unique idempotency key for this transfer attempt
+    const idempotencyKey = "IDEM_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000)
 
     try {
       const res = await fetch("/api/transfer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({
           recipientAccount: recipientAcc,
           bankName,
@@ -51,12 +68,15 @@ export default function TransferPage() {
         }),
       })
 
+      const data = await res.json()
+
       if (!res.ok) {
-        throw new Error("Transfer failed")
+        throw new Error(data.message || "Transfer failed to process.")
       }
+
       setIsSuccess(true)
-    } catch {
-      setIsSuccess(true)
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Transfer failed")
     } finally {
       setIsLoading(false)
     }
@@ -94,6 +114,12 @@ export default function TransferPage() {
             <Send className="h-5 w-5 text-[#3f3cff]" /> Transfer Details
           </h2>
 
+          {errorMessage && (
+            <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 text-xs font-semibold text-rose-700">
+              {errorMessage}
+            </div>
+          )}
+
           {isSuccess ? (
             <div className="rounded-3xl bg-emerald-50 border border-emerald-200 p-8 text-center space-y-4">
               <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30">
@@ -109,6 +135,7 @@ export default function TransferPage() {
                   setAmount("")
                   setRecipientAcc("")
                   setNote("")
+                  setErrorMessage("")
                 }}
                 className="mt-4 rounded-2xl bg-[#3f3cff] px-6 py-3 text-xs font-bold text-white shadow-md"
               >
