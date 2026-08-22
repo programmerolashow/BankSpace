@@ -100,6 +100,7 @@ model BankAccount {
   user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactionsSent     Transaction[] @relation("SenderAccount")
   transactionsReceived Transaction[] @relation("RecipientAccount")
+  ledgerEntries        LedgerEntry[]
 
   @@map("bank_accounts")
 }
@@ -107,6 +108,7 @@ model BankAccount {
 model Transaction {
   id                 String   @id @default(cuid())
   reference          String   @unique
+  providerRef        String?  @map("provider_ref")
   senderAccountId    String?  @map("sender_account_id")
   recipientAccountId String?  @map("recipient_account_id")
   senderName         String   @map("sender_name")
@@ -115,16 +117,36 @@ model Transaction {
   accountNumber      String   @map("account_number")
   amount             Float
   fee                Float    @default(0.0)
+  currency           String   @default("NGN")
   type               String   @default("TRANSFER")
   category           String   @default("Transfer")
-  status             String   @default("SUCCESS")
+  status             String   @default("SUCCESSFUL")
+  description        String?
   note               String?
+  metadata           String?
   createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  senderAccount    BankAccount? @relation("SenderAccount", fields: [senderAccountId], references: [id], onDelete: SetNull)
-  recipientAccount BankAccount? @relation("RecipientAccount", fields: [recipientAccountId], references: [id], onDelete: SetNull)
+  senderAccount    BankAccount?  @relation("SenderAccount", fields: [senderAccountId], references: [id], onDelete: SetNull)
+  recipientAccount BankAccount?  @relation("RecipientAccount", fields: [recipientAccountId], references: [id], onDelete: SetNull)
+  ledgerEntries    LedgerEntry[]
 
   @@map("transactions")
+}
+
+model LedgerEntry {
+  id            String      @id @default(cuid())
+  transactionId String      @map("transaction_id")
+  bankAccountId String      @map("bank_account_id")
+  entryType     String      @map("entry_type")
+  amount        Float
+  balanceAfter  Float       @map("balance_after")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@map("ledger_entries")
 }
 
 model Card {

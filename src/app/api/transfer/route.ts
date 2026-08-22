@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error || "Invalid or expired session" }, { status: 401 })
     }
 
-    const { recipientAccount, recipientName, bankName, amount, note } = await request.json()
+    const { recipientAccount, recipientName, bankName, amount, note, customReference } = await request.json()
 
     if (!recipientAccount || !amount || Number(amount) <= 0) {
       return NextResponse.json({ message: "Invalid transfer amount or recipient details" }, { status: 400 })
@@ -26,63 +26,111 @@ export async function POST(request: Request) {
 
     const numericAmount = Number(amount)
     const { client } = getPrismaClient()
-    const reference = "TXN_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000)
+    const reference = customReference || ("TXN_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000))
+
+    // 1. Idempotency Check: Prevent duplicate transaction references
+    if (client.transaction && typeof client.transaction.findUnique === "function") {
+      const existingTx = await client.transaction.findUnique({
+        where: { reference },
+      })
+      if (existingTx) {
+        return NextResponse.json({ message: "Duplicate transaction reference detected" }, { status: 409 })
+      }
+    }
 
     let createdTx = null
 
-    // Execute atomic balance update inside Prisma interactive transaction if available
+    // 2. Server-Controlled Atomic Transaction State Machine & Double-Entry Ledger
     if (client.bankAccount && client.transaction && typeof client.$transaction === "function") {
       try {
         createdTx = await client.$transaction(async (tx: any) => {
-          // 1. Fetch sender's primary account
+          // A. Find sender's primary account
           const senderAcc = await tx.bankAccount.findFirst({
             where: { userId: user.id, isPrimary: true },
           })
 
-          if (senderAcc) {
-            if (senderAcc.balance < numericAmount) {
-              throw new Error("Insufficient funds in sender account")
-            }
-            if (senderAcc.status !== "ACTIVE") {
-              throw new Error("Sender account is inactive or frozen")
-            }
-
-            // Atomically decrement sender balance
-            await tx.bankAccount.update({
-              where: { id: senderAcc.id },
-              data: { balance: { decrement: numericAmount } },
-            })
+          if (!senderAcc) {
+            throw new Error("No active primary bank account found for user")
           }
 
-          // 2. Check if recipient is internal BankSpace account
-          const recipientAccRecord = await tx.bankAccount.findUnique({
-            where: { accountNumber: recipientAccount },
-          })
-
-          if (recipientAccRecord) {
-            // Atomically increment recipient balance
-            await tx.bankAccount.update({
-              where: { id: recipientAccRecord.id },
-              data: { balance: { increment: numericAmount } },
-            })
+          if (senderAcc.balance < numericAmount) {
+            throw new Error("Insufficient funds in sender account")
           }
 
-          // 3. Record transaction
-          return await tx.transaction.create({
+          if (senderAcc.status !== "ACTIVE") {
+            throw new Error("Sender account is inactive or frozen")
+          }
+
+          // B. Create Transaction record with status = PROCESSING
+          const initialTx = await tx.transaction.create({
             data: {
               reference,
-              senderAccountId: senderAcc?.id || null,
-              recipientAccountId: recipientAccRecord?.id || null,
+              senderAccountId: senderAcc.id,
               senderName: user.name,
               recipientName: recipientName || "Beneficiary",
               bankName: bankName || "BankSpace MFB",
               accountNumber: recipientAccount,
               amount: numericAmount,
               fee: 0.0,
+              currency: "NGN",
               type: "TRANSFER",
               category: "Transfer",
-              status: "SUCCESS",
+              status: "PROCESSING",
               note: note || null,
+            },
+          })
+
+          // C. Atomically decrement sender balance
+          const updatedSender = await tx.bankAccount.update({
+            where: { id: senderAcc.id },
+            data: { balance: { decrement: numericAmount } },
+          })
+
+          // Record DEBIT Ledger Entry for sender
+          if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
+            await tx.ledgerEntry.create({
+              data: {
+                transactionId: initialTx.id,
+                bankAccountId: senderAcc.id,
+                entryType: "DEBIT",
+                amount: numericAmount,
+                balanceAfter: updatedSender.balance,
+              },
+            })
+          }
+
+          // D. Check if recipient is internal BankSpace account
+          const recipientAccRecord = await tx.bankAccount.findUnique({
+            where: { accountNumber: recipientAccount },
+          })
+
+          if (recipientAccRecord) {
+            // Atomically increment recipient balance
+            const updatedRecipient = await tx.bankAccount.update({
+              where: { id: recipientAccRecord.id },
+              data: { balance: { increment: numericAmount } },
+            })
+
+            // Record CREDIT Ledger Entry for recipient
+            if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
+              await tx.ledgerEntry.create({
+                data: {
+                  transactionId: initialTx.id,
+                  bankAccountId: recipientAccRecord.id,
+                  entryType: "CREDIT",
+                  amount: numericAmount,
+                  balanceAfter: updatedRecipient.balance,
+                },
+              })
+            }
+          }
+
+          // E. Mark Transaction as SUCCESSFUL
+          return await tx.transaction.update({
+            where: { id: initialTx.id },
+            data: {
+              status: "SUCCESSFUL",
+              recipientAccountId: recipientAccRecord?.id || null,
             },
           })
         })
@@ -90,7 +138,7 @@ export async function POST(request: Request) {
         if (txErr instanceof Error && txErr.message.includes("Insufficient funds")) {
           return NextResponse.json({ message: "Insufficient funds for transfer" }, { status: 400 })
         }
-        console.warn("[Atomic Transfer Transaction Notice]:", txErr)
+        console.warn("[Atomic Double-Entry Transaction Notice]:", txErr)
       }
     }
 
@@ -101,7 +149,7 @@ export async function POST(request: Request) {
         amount: numericAmount,
         recipientAccount,
         bankName,
-        status: "SUCCESS",
+        status: "SUCCESSFUL",
         createdAt: new Date().toISOString(),
       },
     })
