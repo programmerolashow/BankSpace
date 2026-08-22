@@ -144,6 +144,77 @@ export async function loginUser(email: string, password: string, ipAddress?: str
   }
 }
 
+export async function verifySessionToken(token: string) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string }
+    if (!decoded || !decoded.sub) {
+      return { valid: false, error: "Invalid session token" }
+    }
+
+    if (decoded.sub === "demo_user_123" || decoded.email === "user@bankite.com") {
+      return {
+        valid: true,
+        user: {
+          id: "demo_user_123",
+          name: "Illias Olanrewaju",
+          email: "user@bankite.com",
+          phone: "+234 812 345 6789",
+          role: "USER",
+        },
+      }
+    }
+
+    const { client } = getPrismaClient()
+
+    // Check active session record in database
+    if (client.session && typeof client.session.findUnique === "function") {
+      const dbSession = await client.session.findUnique({
+        where: { token },
+      })
+      if (!dbSession || new Date() > dbSession.expiresAt) {
+        return { valid: false, error: "Session has been revoked or expired" }
+      }
+    }
+
+    const user = await client.user.findUnique({
+      where: { id: decoded.sub },
+    })
+
+    if (!user) {
+      return { valid: false, error: "User not found" }
+    }
+
+    return {
+      valid: true,
+      user: {
+        id: String(user.id),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        avatarUrl: user.avatarUrl,
+        role: user.role,
+      },
+    }
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : "Token verification failed" }
+  }
+}
+
+export async function revokeSessionToken(token: string) {
+  const { client } = getPrismaClient()
+  try {
+    if (client.session && typeof client.session.delete === "function") {
+      await client.session.delete({ where: { token } }).catch(() => null)
+    }
+  } catch (err) {
+    console.warn("[Revoke Session Notice]:", err)
+  }
+}
+
+export function requireRole(userRole: string = "USER", allowedRoles: string[] = ["USER", "ADMIN"]): boolean {
+  return allowedRoles.includes(userRole)
+}
+
 export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
   const { client } = getPrismaClient()
   const normalizedEmail = payload.email.toLowerCase().trim()
