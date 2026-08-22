@@ -68,6 +68,7 @@ export async function registerUser(name: string, email: string, password: string
       email: normalizedEmail,
       passwordHash,
       phone: phone?.trim() || null,
+      role: "USER",
     },
   })
 
@@ -77,6 +78,45 @@ export async function registerUser(name: string, email: string, password: string
       name: newUser.name,
       email: newUser.email,
       phone: newUser.phone,
+      role: newUser.role,
+    },
+  }
+}
+
+export async function registerAdminUser(name: string, email: string, password: string, adminKey: string) {
+  const expectedAdminKey = process.env.ADMIN_REGISTRATION_KEY || "bankspace-admin-key-2026"
+  if (adminKey !== expectedAdminKey) {
+    throw new Error("Invalid Administrator Authorization Key")
+  }
+
+  const { client } = getPrismaClient()
+  const normalizedEmail = email.toLowerCase().trim()
+
+  const existingUser = await client.user.findUnique({
+    where: { email: normalizedEmail },
+  })
+
+  if (existingUser) {
+    throw new Error("User already exists with this email")
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+  const newAdmin = await client.user.create({
+    data: {
+      name,
+      email: normalizedEmail,
+      passwordHash,
+      role: "ADMIN",
+      isVerified: true,
+    },
+  })
+
+  return {
+    user: {
+      id: String(newAdmin.id),
+      name: newAdmin.name,
+      email: newAdmin.email,
+      role: newAdmin.role,
     },
   }
 }
@@ -87,13 +127,29 @@ export async function loginUser(email: string, password: string, ipAddress?: str
   // Pre-configured demo user support
   if (normalizedEmail === "user@bankite.com" && password === "password123") {
     const userId = "demo_user_123"
-    const token = jwt.sign({ sub: userId, email: normalizedEmail }, JWT_SECRET, { expiresIn: "7d" })
+    const token = jwt.sign({ sub: userId, email: normalizedEmail, role: "USER" }, JWT_SECRET, { expiresIn: "7d" })
     return {
       token,
       user: {
         id: userId,
         name: "Illias Olanrewaju",
         email: normalizedEmail,
+        role: "USER",
+      },
+    }
+  }
+
+  // Pre-configured demo admin support
+  if (normalizedEmail === "admin@bankspace.com" && password === "admin12345") {
+    const userId = "demo_admin_777"
+    const token = jwt.sign({ sub: userId, email: normalizedEmail, role: "ADMIN" }, JWT_SECRET, { expiresIn: "7d" })
+    return {
+      token,
+      user: {
+        id: userId,
+        name: "System Admin",
+        email: normalizedEmail,
+        role: "ADMIN",
       },
     }
   }
@@ -113,9 +169,8 @@ export async function loginUser(email: string, password: string, ipAddress?: str
   }
 
   const userId = String(user.id)
-  const token = jwt.sign({ sub: userId, email: user.email }, JWT_SECRET, { expiresIn: "7d" })
+  const token = jwt.sign({ sub: userId, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "7d" })
 
-  // Record session in database if using live Prisma client
   try {
     if (client.session && typeof client.session.create === "function") {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -140,13 +195,14 @@ export async function loginUser(email: string, password: string, ipAddress?: str
       name: user.name,
       email: user.email,
       phone: user.phone,
+      role: user.role,
     },
   }
 }
 
 export async function verifySessionToken(token: string) {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string }
+    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string; role?: string }
     if (!decoded || !decoded.sub) {
       return { valid: false, error: "Invalid session token" }
     }
@@ -164,9 +220,21 @@ export async function verifySessionToken(token: string) {
       }
     }
 
+    if (decoded.sub === "demo_admin_777" || decoded.email === "admin@bankspace.com") {
+      return {
+        valid: true,
+        user: {
+          id: "demo_admin_777",
+          name: "System Admin",
+          email: "admin@bankspace.com",
+          phone: "+234 800 000 0000",
+          role: "ADMIN",
+        },
+      }
+    }
+
     const { client } = getPrismaClient()
 
-    // Check active session record in database
     if (client.session && typeof client.session.findUnique === "function") {
       const dbSession = await client.session.findUnique({
         where: { token },
@@ -200,6 +268,17 @@ export async function verifySessionToken(token: string) {
   }
 }
 
+export async function requireAdminSession(token: string) {
+  const result = await verifySessionToken(token)
+  if (!result.valid || !result.user) {
+    return { valid: false, error: result.error || "Unauthenticated session" }
+  }
+  if (result.user.role !== "ADMIN") {
+    return { valid: false, error: "Access denied. Administrator privileges required." }
+  }
+  return { valid: true, user: result.user }
+}
+
 export async function revokeSessionToken(token: string) {
   const { client } = getPrismaClient()
   try {
@@ -219,7 +298,6 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
   const { client } = getPrismaClient()
   const normalizedEmail = payload.email.toLowerCase().trim()
 
-  // 1. Check if OAuth Account already exists for (provider, providerAccountId)
   if (client.account && typeof client.account.findUnique === "function") {
     const existingAccount = await client.account.findUnique({
       where: {
@@ -233,7 +311,7 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
 
     if (existingAccount && existingAccount.user) {
       const user = existingAccount.user
-      const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" })
+      const token = jwt.sign({ sub: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "7d" })
 
       try {
         if (client.session && typeof client.session.create === "function") {
@@ -256,17 +334,16 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
           name: user.name,
           email: user.email,
           avatarUrl: user.avatarUrl,
+          role: user.role,
         },
       }
     }
   }
 
-  // 2. Check if a User already exists with this email address
   let targetUser = await client.user.findUnique({
     where: { email: normalizedEmail },
   })
 
-  // 3. Create User if not found
   if (!targetUser) {
     targetUser = await client.user.create({
       data: {
@@ -274,11 +351,11 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
         email: normalizedEmail,
         isVerified: true,
         avatarUrl: payload.avatarUrl || null,
+        role: "USER",
       },
     })
   }
 
-  // 4. Link Account to targetUser
   if (client.account && typeof client.account.create === "function") {
     try {
       await client.account.create({
@@ -297,9 +374,8 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
     }
   }
 
-  // 5. Generate session token & record session in NeonDB
   const userId = String(targetUser.id)
-  const token = jwt.sign({ sub: userId, email: targetUser.email }, JWT_SECRET, { expiresIn: "7d" })
+  const token = jwt.sign({ sub: userId, email: targetUser.email, role: targetUser.role }, JWT_SECRET, { expiresIn: "7d" })
 
   try {
     if (client.session && typeof client.session.create === "function") {
@@ -322,6 +398,7 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
       name: targetUser.name,
       email: targetUser.email,
       avatarUrl: targetUser.avatarUrl,
+      role: targetUser.role,
     },
   }
 }
@@ -345,7 +422,6 @@ export async function generatePasswordResetToken(email: string) {
   const normalizedEmail = email.toLowerCase().trim()
   const { client } = getPrismaClient()
 
-  // Support demo account password reset simulation
   if (normalizedEmail === "user@bankite.com") {
     const demoToken = "demo_reset_token_" + Date.now()
     return {
@@ -364,7 +440,7 @@ export async function generatePasswordResetToken(email: string) {
   }
 
   const token = crypto.randomBytes(32).toString("hex")
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour expiration
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
   if (client.passwordResetToken && typeof client.passwordResetToken.create === "function") {
     await client.passwordResetToken.create({

@@ -17,13 +17,19 @@ const protectedPrefixes = [
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const isProtected = protectedPrefixes.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
   const authToken = request.cookies.get("auth")?.value
   const isAuthenticated = Boolean(authToken && authToken !== "")
 
-  // Enforce auth guard: redirect unauthenticated users trying to access protected routes to home page with login modal
+  // Dedicated Admin Guard
+  if (pathname.startsWith("/admin/dashboard") && !isAuthenticated) {
+    const adminLoginUrl = new URL("/admin/login", request.url)
+    return NextResponse.redirect(adminLoginUrl)
+  }
+
+  const isProtected = protectedPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  )
+
   if (isProtected && !isAuthenticated) {
     const loginUrl = new URL("/", request.url)
     loginUrl.searchParams.set("auth", "login")
@@ -46,5 +52,6 @@ export const config = {
     "/budgets/:path*",
     "/savings/:path*",
     "/profile/:path*",
+    "/admin/dashboard/:path*",
   ],
 }
