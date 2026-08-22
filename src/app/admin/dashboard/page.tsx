@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ShieldCheck,
@@ -14,10 +13,9 @@ import {
   RefreshCw,
   Search,
   CheckCircle2,
-  XCircle,
   FileText,
-  Building2,
-  Sparkles,
+  Scale,
+  Loader2,
 } from "lucide-react"
 
 type AdminUser = {
@@ -61,23 +59,43 @@ type AuditLog = {
   timestamp: string
 }
 
+type ReconcileReport = {
+  status: string
+  auditedAt: string
+  metrics: {
+    totalAccountsAudited: number
+    totalTransactionsAudited: number
+    discrepancyCount: number
+  }
+  discrepancies: Array<{
+    type: string
+    accountNumber?: string
+    accountName?: string
+    databaseBalance?: number
+    calculatedLedgerBalance?: number
+    discrepancyAmount?: number
+    severity: string
+  }>
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"users" | "transactions" | "logs">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "transactions" | "logs" | "reconcile">("users")
   const [users, setUsers] = useState<AdminUser[]>([])
   const [transactions, setTransactions] = useState<AdminTransaction[]>([])
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState("")
 
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+
+  // Reconciliation state
+  const [reconcileReport, setReconcileReport] = useState<ReconcileReport | null>(null)
+  const [isReconciling, setIsReconciling] = useState(false)
 
   const fetchAdminData = async () => {
     setIsLoading(true)
-    setError("")
     try {
       const [uRes, tRes, lRes] = await Promise.all([
         fetch("/api/admin/users"),
@@ -98,9 +116,25 @@ export default function AdminDashboardPage() {
       if (tData.transactions) setTransactions(tData.transactions)
       if (lData.logs) setLogs(lData.logs)
     } catch {
-      setError("Failed to load admin telemetry data.")
+      // Fallback
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleRunReconciliation = async () => {
+    setIsReconciling(true)
+    try {
+      const res = await fetch("/api/admin/reconcile")
+      if (res.ok) {
+        const data = await res.json()
+        setReconcileReport(data)
+        setActiveTab("reconcile")
+      }
+    } catch {
+      // Error
+    } finally {
+      setIsReconciling(false)
     }
   }
 
@@ -126,7 +160,6 @@ export default function AdminDashboardPage() {
       if (!res.ok) throw new Error("Status update failed")
 
       fetchAdminData()
-      setSelectedUser(null)
     } catch {
       alert("Failed to update user account status.")
     } finally {
@@ -178,6 +211,14 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRunReconciliation}
+              disabled={isReconciling}
+              className="flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:opacity-95 disabled:opacity-70"
+            >
+              {isReconciling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scale className="h-4 w-4" />}
+              <span>{isReconciling ? "Reconciling..." : "Run Financial Audit"}</span>
+            </button>
             <button
               onClick={fetchAdminData}
               className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors"
@@ -235,7 +276,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Tab Selection */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
           <button
             onClick={() => setActiveTab("users")}
             className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
@@ -260,6 +301,17 @@ export default function AdminDashboardPage() {
           >
             Security Audit Logs
           </button>
+          {reconcileReport && (
+            <button
+              onClick={() => setActiveTab("reconcile")}
+              className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === "reconcile" ? "bg-emerald-600 text-white shadow-lg" : "text-emerald-400 hover:text-white"
+              }`}
+            >
+              <Scale className="h-3.5 w-3.5" />
+              <span>Reconciliation Report</span>
+            </button>
+          )}
         </div>
 
         {/* Search & Filter Bar */}
@@ -403,6 +455,54 @@ export default function AdminDashboardPage() {
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {/* TAB 4: RECONCILIATION REPORT */}
+        {activeTab === "reconcile" && reconcileReport && (
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Double-Entry Audit Engine</span>
+                <h2 className="text-xl font-black text-white mt-1">Financial Reconciliation Report</h2>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold border ${reconcileReport.status === "RECONCILED" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30"}`}>
+                {reconcileReport.status}
+              </span>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl bg-slate-950 p-4 border border-slate-800">
+                <p className="text-xs text-slate-400">Audited Bank Accounts</p>
+                <p className="text-2xl font-black text-white mt-1">{reconcileReport.metrics.totalAccountsAudited}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-950 p-4 border border-slate-800">
+                <p className="text-xs text-slate-400">Audited Transactions</p>
+                <p className="text-2xl font-black text-white mt-1">{reconcileReport.metrics.totalTransactionsAudited}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-950 p-4 border border-slate-800">
+                <p className="text-xs text-slate-400">Discrepant Entries</p>
+                <p className="text-2xl font-black text-emerald-400 mt-1">{reconcileReport.metrics.discrepancyCount}</p>
+              </div>
+            </div>
+
+            {reconcileReport.discrepancies.length === 0 ? (
+              <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-6 text-center space-y-2">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
+                <p className="font-bold text-sm text-emerald-300">100% Reconciled — 0 Balance Discrepancies Found</p>
+                <p className="text-xs text-slate-400">All account balances match double-entry ledger calculations with zero variance.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400">Detected Discrepancies</h3>
+                {reconcileReport.discrepancies.map((d, i) => (
+                  <div key={i} className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-xs space-y-1 text-rose-300">
+                    <p className="font-bold">{d.type} — Account: {d.accountNumber || d.reference}</p>
+                    <p className="text-slate-400">Database Balance: ₦{d.databaseBalance} | Calculated Ledger: ₦{d.calculatedLedgerBalance}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
       </div>
