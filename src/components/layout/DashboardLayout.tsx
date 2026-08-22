@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Sun,
   Moon,
+  CheckCheck,
 } from "lucide-react"
 
 const navItems = [
@@ -50,9 +51,17 @@ export default function DashboardLayout({
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const notifRef = useRef<HTMLDivElement>(null)
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<
+    Array<{ id: string; title: string; message: string; type: string; isRead: boolean; createdAt: string }>
+  >([])
+  const [unreadCount, setUnreadCount] = useState(0)
 
   // Dynamic user state
   const [user, setUser] = useState<{ name: string; email: string; phone?: string }>({
@@ -60,7 +69,7 @@ export default function DashboardLayout({
     email: "illias.o@bankspace.com",
   })
 
-  // Load user from localStorage & verify via /api/auth/me
+  // Load user & notifications
   useEffect(() => {
     try {
       const stored = localStorage.getItem("bankspace_user")
@@ -73,7 +82,6 @@ export default function DashboardLayout({
       // Ignore JSON parse error
     }
 
-    // Fetch live user from database session
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -83,35 +91,46 @@ export default function DashboardLayout({
         }
       })
       .catch(() => null)
+
+    // Fetch live notifications
+    fetch("/api/notifications")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.notifications) {
+          setNotifications(data.notifications)
+          setUnreadCount(data.unreadCount || 0)
+        }
+      })
+      .catch(() => null)
   }, [])
 
-  // Close mobile sidebar on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && mobileOpen) {
-        setMobileOpen(false)
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [mobileOpen])
-
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setUserDropdownOpen(false)
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifDropdownOpen(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  const handleOpenNotifications = () => {
+    setNotifDropdownOpen(!notifDropdownOpen)
+    if (!notifDropdownOpen && unreadCount > 0) {
+      setUnreadCount(0)
+      fetch("/api/notifications", { method: "POST" }).catch(() => null)
+    }
+  }
+
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" })
     } catch {
-      // Fallback manual cookie clear
+      // Fallback
     }
     localStorage.removeItem("bankspace_user")
     document.cookie = "auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
@@ -281,49 +300,6 @@ export default function DashboardLayout({
               )
             })}
           </nav>
-
-          {/* Theme Toggle inside Mobile Drawer */}
-          <div className={`mt-3 mb-2 rounded-2xl border p-3 shadow-xs flex items-center justify-between transition-colors ${
-            isDarkMode ? "border-slate-800 bg-slate-800/80 text-slate-200" : "border-slate-200/80 bg-white/90 text-slate-700"
-          }`}>
-            <div className="flex items-center gap-2.5 font-semibold text-xs">
-              {isDarkMode ? (
-                <Moon className="h-4 w-4 text-violet-400" />
-              ) : (
-                <Sun className="h-4 w-4 text-amber-500" />
-              )}
-              <span>{isDarkMode ? "Dark Mode" : "Light Mode"}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                isDarkMode ? "bg-[#3f3cff]" : "bg-slate-200"
-              }`}
-              aria-label="Toggle light and dark mode"
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                  isDarkMode ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className={`rounded-2xl p-4 shadow-xs ${
-            isDarkMode ? "bg-slate-800/80 text-slate-100" : "bg-linear-to-br from-[#f0edff] to-[#e9ecff]"
-          }`}>
-            <div className="flex items-center gap-2 text-[#3f3cff] font-bold text-sm">
-              <Sparkles className="h-4 w-4" />
-              <span>Upgrade to Premium</span>
-            </div>
-            <p className={`mt-1 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}>
-              Higher limits & advanced features.
-            </p>
-            <button className="mt-3 w-full rounded-xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-500/25">
-              Upgrade Now
-            </button>
-          </div>
         </aside>
 
         {/* Main Content Area */}
@@ -335,7 +311,6 @@ export default function DashboardLayout({
             isDarkMode ? "bg-slate-950/90" : "bg-[#f8f9ff]/90"
           }`}>
             <div className="flex items-center gap-3">
-              {/* Hamburger Button for Mobile & Tablet screens (< lg breakpoint) */}
               <button
                 type="button"
                 className={`flex h-10 w-10 items-center justify-center rounded-xl border text-[#3f3cff] shadow-xs transition-colors lg:hidden ${
@@ -366,13 +341,62 @@ export default function DashboardLayout({
 
             {/* Right Action Bar */}
             <div className="ml-auto flex items-center gap-3">
-              {/* Notification Button */}
-              <button className={`relative grid h-10 w-10 place-items-center rounded-xl border shadow-xs transition-colors ${
-                isDarkMode ? "border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800" : "border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50"
-              }`}>
-                <Bell className="h-4.5 w-4.5" />
-                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-violet-600 ring-2 ring-white" />
-              </button>
+              {/* Notification Bell Button & Dropdown */}
+              <div className="relative" ref={notifRef}>
+                <button
+                  type="button"
+                  onClick={handleOpenNotifications}
+                  className={`relative grid h-10 w-10 place-items-center rounded-xl border shadow-xs transition-colors ${
+                    isDarkMode ? "border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800" : "border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Bell className="h-4.5 w-4.5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-violet-600 ring-2 ring-white" />
+                  )}
+                </button>
+
+                {/* Notifications Dropdown */}
+                {notifDropdownOpen && (
+                  <div className={`absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-3xl border p-4 shadow-2xl backdrop-blur-md z-50 animate-in fade-in slide-in-from-top-2 duration-150 ${
+                    isDarkMode ? "border-slate-800 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
+                  }`}>
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-[#3f3cff]" />
+                        <h3 className="font-bold text-xs uppercase tracking-wider">Notifications</h3>
+                      </div>
+                      <span className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                        <CheckCheck className="h-3 w-3 text-emerald-500" /> Synced
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+                      {notifications.length === 0 ? (
+                        <p className="text-center text-xs text-slate-400 py-6">No new notifications</p>
+                      ) : (
+                        notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            className={`p-3 rounded-2xl border transition-colors ${
+                              n.type === "SECURITY"
+                                ? "border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50"
+                                : n.type === "SUCCESS"
+                                ? "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/50"
+                                : isDarkMode
+                                ? "border-slate-800 bg-slate-800/50"
+                                : "border-slate-100 bg-slate-50/70"
+                            }`}
+                          >
+                            <p className="font-bold text-xs">{n.title}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{n.message}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Send Money Button */}
               <Link

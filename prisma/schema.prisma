@@ -27,12 +27,13 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  accounts     Account[]
-  sessions     Session[]
-  resetTokens  PasswordResetToken[]
-  bankAccounts BankAccount[]
-  cards        Card[]
-  savingsGoals SavingsGoal[]
+  accounts      Account[]
+  sessions      Session[]
+  resetTokens   PasswordResetToken[]
+  bankAccounts  BankAccount[]
+  cards         Card[]
+  savingsGoals  SavingsGoal[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -180,4 +181,18 @@ model SavingsGoal {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("savings_goals")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }

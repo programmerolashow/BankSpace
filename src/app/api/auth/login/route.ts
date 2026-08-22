@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { loginUser } from "@/lib/auth"
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit"
+import { createNotification } from "@/lib/notifications"
 
 export async function POST(request: Request) {
   try {
@@ -22,6 +23,14 @@ export async function POST(request: Request) {
 
     const userAgent = request.headers.get("user-agent") || undefined
     const { token, user } = await loginUser(email, password, ip, userAgent)
+
+    // Trigger backend Security Event Notification
+    await createNotification(
+      user.id,
+      "Security Alert: New Session Login",
+      `New successful login authenticated for your account from IP ${ip}.`,
+      "SECURITY"
+    )
 
     const response = NextResponse.json({ user, token }, { status: 200 })
 
