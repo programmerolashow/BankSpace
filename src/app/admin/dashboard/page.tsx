@@ -71,6 +71,7 @@ type ReconcileReport = {
     type: string
     accountNumber?: string
     accountName?: string
+    reference?: string
     databaseBalance?: number
     calculatedLedgerBalance?: number
     discrepancyAmount?: number
