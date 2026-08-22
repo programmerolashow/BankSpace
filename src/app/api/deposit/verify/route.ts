@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { verifyPaystackTransaction } from "@/lib/payments"
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Deposit transaction record not found" }, { status: 404 })
     }
 
-    // 1. Prevent Duplicate Crediting: If already SUCCESSFUL, reject duplicate claim!
+    // 1. Duplicate Processing Prevention: If already SUCCESSFUL, return 409 Conflict
     if (existingTx.status === "SUCCESSFUL") {
       return NextResponse.json(
         {
@@ -50,35 +51,31 @@ export async function POST(request: Request) {
       )
     }
 
-    // 2. Server-to-Server Paystack Verification Check
-    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY
-    let paystackSuccess = true // Default mock verification for sandbox references
+    // 2. Server-Side Paystack Verification with Timeout & Retry Engine
+    const verification = await verifyPaystackTransaction(reference)
 
-    if (paystackSecretKey && reference.startsWith("DEP_LIVE_")) {
-      try {
-        const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-          headers: {
-            Authorization: `Bearer ${paystackSecretKey}`,
+    if (!verification.success) {
+      if (verification.status === "PROVIDER_DOWN") {
+        return NextResponse.json(
+          {
+            message: verification.message || "Payment provider is currently undergoing maintenance. Deposit remains PENDING for webhook settlement.",
+            status: "PENDING",
           },
-        })
-        const verifyData = await verifyRes.json()
-        paystackSuccess = Boolean(verifyData.status && verifyData.data?.status === "success")
-      } catch (err) {
-        console.warn("[Paystack Server Verification Warning]:", err)
-        paystackSuccess = false
+          { status: 503 }
+        )
       }
+      return NextResponse.json(
+        { message: verification.message || "Paystack server payment verification failed" },
+        { status: 400 }
+      )
     }
 
-    if (!paystackSuccess) {
-      return NextResponse.json({ message: "Paystack server payment verification failed" }, { status: 400 })
-    }
-
-    // 3. Atomic Prisma $transaction: Update status, increment balance, & record ledger entry
+    // 3. Atomic Prisma $transaction: Update status, providerRef, increment balance, & record CREDIT LedgerEntry
     let verifiedTx = null
     if (client.bankAccount && typeof client.$transaction === "function") {
       verifiedTx = await client.$transaction(async (tx: any) => {
-        // A. Find or fallback user primary account
-        let targetAccount = existingTx.recipientAccountId
+        // A. Find user primary bank account
+        const targetAccount = existingTx.recipientAccountId
           ? await tx.bankAccount.findUnique({ where: { id: existingTx.recipientAccountId } })
           : await tx.bankAccount.findFirst({ where: { userId: user.id, isPrimary: true } })
 
@@ -91,11 +88,12 @@ export async function POST(request: Request) {
           where: { id: existingTx.id },
           data: {
             status: "SUCCESSFUL",
+            providerRef: verification.providerRef || existingTx.providerRef,
             recipientAccountId: targetAccount.id,
           },
         })
 
-        // C. Atomically increment user's BankAccount balance
+        // C. Atomically increment user BankAccount balance
         const updatedAccount = await tx.bankAccount.update({
           where: { id: targetAccount.id },
           data: { balance: { increment: existingTx.amount } },
