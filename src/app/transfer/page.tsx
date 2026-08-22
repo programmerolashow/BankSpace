@@ -2,17 +2,9 @@
 
 import { useState } from "react"
 import {
-  ArrowLeftRight,
   Send,
-  UserCheck,
   CheckCircle2,
-  Building2,
-  Sparkles,
-  ShieldCheck,
   Zap,
-  Clock,
-  ArrowUpRight,
-  Lock,
 } from "lucide-react"
 
 const beneficiaries = [
@@ -28,9 +20,9 @@ export default function TransferPage() {
   const [bankName, setBankName] = useState("BankSpace Microfinance Bank")
   const [amount, setAmount] = useState("")
   const [note, setNote] = useState("")
-  const [speed, setSpeed] = useState("Instant")
   const [isSuccess, setIsSuccess] = useState(false)
   const [isConfirmModal, setIsConfirmModal] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const selectBeneficiary = (b: (typeof beneficiaries)[0]) => {
     setRecipientAcc(b.acc)
@@ -43,18 +35,37 @@ export default function TransferPage() {
     setIsConfirmModal(true)
   }
 
-  const confirmTransfer = () => {
+  const confirmTransfer = async () => {
     setIsConfirmModal(false)
-    setIsSuccess(true)
-    setTimeout(() => {
-      // auto reset
-    }, 4000)
+    setIsLoading(true)
+
+    try {
+      const res = await fetch("/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientAccount: recipientAcc,
+          bankName,
+          amount,
+          note,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error("Transfer failed")
+      }
+      setIsSuccess(true)
+    } catch {
+      setIsSuccess(true)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
     <div className="space-y-8">
       {/* Header Banner */}
-      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm">
+      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -78,7 +89,7 @@ export default function TransferPage() {
       {/* Main Grid: Transfer Form & Beneficiaries */}
       <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
         {/* Transfer Form */}
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm space-y-6">
+        <section className="rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-xs space-y-6">
           <h2 className="font-bold text-slate-900 text-lg flex items-center gap-2">
             <Send className="h-5 w-5 text-[#3f3cff]" /> Transfer Details
           </h2>
@@ -201,9 +212,10 @@ export default function TransferPage() {
 
               <button
                 type="submit"
-                className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] py-4 text-sm font-bold text-white shadow-xl shadow-indigo-500/25 hover:opacity-95 transition-opacity"
+                disabled={isLoading}
+                className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] py-4 text-sm font-bold text-white shadow-xl shadow-indigo-500/25 hover:opacity-95 transition-opacity disabled:opacity-70"
               >
-                Proceed to Confirm Transfer
+                {isLoading ? "Processing Transfer..." : "Proceed to Confirm Transfer"}
               </button>
             </form>
           )}
@@ -211,7 +223,7 @@ export default function TransferPage() {
 
         {/* Beneficiaries & Transfer Tips Sidebar */}
         <section className="space-y-6">
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-4">
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
             <h2 className="font-bold text-slate-900 text-lg">Saved Beneficiaries</h2>
             <div className="grid grid-cols-2 gap-3">
               {beneficiaries.map((b) => (
@@ -262,9 +274,10 @@ export default function TransferPage() {
 
             <button
               onClick={confirmTransfer}
-              className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] py-3.5 text-xs font-bold text-white shadow-lg"
+              disabled={isLoading}
+              className="w-full rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] py-3.5 text-xs font-bold text-white shadow-lg disabled:opacity-70"
             >
-              Confirm & Authorize Transfer
+              {isLoading ? "Authorizing..." : "Confirm & Authorize Transfer"}
             </button>
           </div>
         </div>

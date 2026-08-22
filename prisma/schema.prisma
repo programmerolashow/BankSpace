@@ -1,3 +1,6 @@
+// This is your Prisma schema file for BankSpace PostgreSQL database
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,20 +10,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
-  id           String               @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
-  email        String               @unique
-  passwordHash String?              @map("password_hash")
-  role         Role                 @default(USER)
-  isVerified   Boolean              @default(true) @map("is_verified")
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  role         Role      @default(USER)
+  isVerified   Boolean   @default(true) @map("is_verified")
   phone        String?
-  avatarUrl    String?              @map("avatar_url")
-  createdAt    DateTime             @default(now()) @map("created_at")
-  updatedAt    DateTime             @updatedAt @map("updated_at")
+  avatarUrl    String?   @map("avatar_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
   accounts     Account[]
-  resetTokens  PasswordResetToken[]
   sessions     Session[]
+  resetTokens  PasswordResetToken[]
+  bankAccounts BankAccount[]
+  cards        Card[]
+  savingsGoals SavingsGoal[]
 
   @@map("users")
 }
@@ -36,6 +48,7 @@ model Account {
   idToken           String?  @map("id_token")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
+
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
@@ -50,6 +63,7 @@ model Session {
   userAgent String?  @map("user_agent")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
@@ -61,12 +75,84 @@ model PasswordResetToken {
   token     String   @unique
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
 }
 
-enum Role {
-  USER
-  ADMIN
+model BankAccount {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  accountNumber String   @unique @map("account_number")
+  accountName   String   @map("account_name")
+  bankName      String   @default("BankSpace Microfinance Bank") @map("bank_name")
+  accountType   String   @default("CHECKING") @map("account_type")
+  balance       Float    @default(850240.0)
+  currency      String   @default("NGN")
+  isPrimary     Boolean  @default(true) @map("is_primary")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionsSent     Transaction[] @relation("SenderAccount")
+  transactionsReceived Transaction[] @relation("RecipientAccount")
+
+  @@map("bank_accounts")
+}
+
+model Transaction {
+  id                 String   @id @default(cuid())
+  reference          String   @unique
+  senderAccountId    String?  @map("sender_account_id")
+  recipientAccountId String?  @map("recipient_account_id")
+  senderName         String   @map("sender_name")
+  recipientName      String   @map("recipient_name")
+  bankName           String   @map("bank_name")
+  accountNumber      String   @map("account_number")
+  amount             Float
+  fee                Float    @default(0.0)
+  type               String   @default("TRANSFER")
+  category           String   @default("Transfer")
+  status             String   @default("SUCCESS")
+  note               String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  senderAccount    BankAccount? @relation("SenderAccount", fields: [senderAccountId], references: [id], onDelete: SetNull)
+  recipientAccount BankAccount? @relation("RecipientAccount", fields: [recipientAccountId], references: [id], onDelete: SetNull)
+
+  @@map("transactions")
+}
+
+model Card {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  cardHolderName String   @map("card_holder_name")
+  maskedPan      String   @map("masked_pan")
+  cardType       String   @default("VISA") @map("card_type")
+  cardCategory   String   @default("VIRTUAL") @map("card_category")
+  expiryDate     String   @map("expiry_date")
+  status         String   @default("ACTIVE")
+  spendingLimit  Float    @default(500000.0) @map("spending_limit")
+  colorScheme    String   @default("PURPLE") @map("color_scheme")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cards")
+}
+
+model SavingsGoal {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  title         String
+  targetAmount  Float    @map("target_amount")
+  currentAmount Float    @default(0.0) @map("current_amount")
+  targetDate    String?  @map("target_date")
+  category      String   @default("GENERAL")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("savings_goals")
 }
