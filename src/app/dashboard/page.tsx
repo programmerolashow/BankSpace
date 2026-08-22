@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { Loader2 } from "lucide-react"
 
 const quickActions = [
   { label: "Send Money", color: "bg-violet-100 text-violet-600", icon: "➤", href: "/transfer" },
@@ -11,39 +12,28 @@ const quickActions = [
   { label: "More", color: "bg-slate-100 text-slate-500", icon: "⌘", href: "/analytics" },
 ]
 
-const transactions = [
-  {
-    name: "Transfer to Michael O.",
-    type: "Transfer",
-    amount: "-₦50,000.00",
-    color: "text-slate-950",
-    badge: "bg-emerald-500",
-  },
-  {
-    name: "Shoprite Supermarket",
-    type: "Shopping",
-    amount: "-₦15,600.00",
-    color: "text-slate-950",
-    badge: "bg-violet-600",
-  },
-  {
-    name: "Salary from Neominds",
-    type: "Income",
-    amount: "+ ₦250,000.00",
-    color: "text-emerald-500",
-    badge: "bg-sky-500",
-  },
-  {
-    name: "Ikeja Electric",
-    type: "Bills & Utilities",
-    amount: "-₦8,200.00",
-    color: "text-slate-950",
-    badge: "bg-orange-400",
-  },
-]
+type AccountData = {
+  accountNumber: string
+  balance: number
+  accountName: string
+  bankName: string
+}
+
+type TxData = {
+  id: string
+  reference: string
+  recipientName: string
+  amount: number
+  type: string
+  status: string
+  createdAt: string
+}
 
 export default function DashboardPage() {
-  const [userName, setUserName] = useState("Google")
+  const [userName, setUserName] = useState("User")
+  const [account, setAccount] = useState<AccountData | null>(null)
+  const [transactions, setTransactions] = useState<TxData[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     // 1. Initial local storage check for instant load
@@ -52,8 +42,7 @@ export default function DashboardPage() {
       if (stored) {
         const parsed = JSON.parse(stored)
         if (parsed.name) {
-          const firstName = parsed.name.trim().split(/\s+/)[0] || "Google"
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+          const firstName = parsed.name.trim().split(/\s+/)[0] || "User"
           setUserName(firstName)
         }
       }
@@ -61,17 +50,30 @@ export default function DashboardPage() {
       // Ignore JSON parse error
     }
 
-    // 2. Authoritative database fetch from /api/auth/me
-    fetch("/api/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.user?.name) {
-          const firstName = data.user.name.trim().split(/\s+/)[0] || "Google"
+    // 2. Authoritative backend fetches
+    Promise.all([
+      fetch("/api/auth/me").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/accounts").then((res) => (res.ok ? res.json() : null)),
+      fetch("/api/transactions?limit=4").then((res) => (res.ok ? res.json() : null)),
+    ])
+      .then(([userData, accData, txData]) => {
+        if (userData?.user?.name) {
+          const firstName = userData.user.name.trim().split(/\s+/)[0] || "User"
           setUserName(firstName)
+        }
+        if (accData?.accounts?.[0]) {
+          setAccount(accData.accounts[0])
+        }
+        if (txData?.transactions) {
+          setTransactions(txData.transactions)
         }
       })
       .catch(() => null)
+      .finally(() => setIsLoading(false))
   }, [])
+
+  const displayBalance = account ? `₦${account.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "₦850,240.00"
+  const maskAccount = account?.accountNumber ? `•••• ${account.accountNumber.slice(-4)}` : "•••• 4598"
 
   return (
     <div>
@@ -110,7 +112,7 @@ export default function DashboardPage() {
           <div className="relative z-10 flex items-start justify-between">
             <div>
               <p className="text-sm text-white/75">Total Balance</p>
-              <h2 className="mt-4 text-4xl font-bold">₦1,250,450.00</h2>
+              <h2 className="mt-4 text-4xl font-bold">{isLoading ? "..." : displayBalance}</h2>
               <div className="mt-4 inline-flex rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-200">
                 +12.5% vs last month
               </div>
@@ -122,7 +124,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="relative z-10 mt-20 flex items-end justify-between">
-            <p className="font-semibold tracking-widest">•••• 4598</p>
+            <p className="font-semibold tracking-widest">{maskAccount}</p>
             <p className="text-xl font-black italic">VISA</p>
           </div>
         </section>
@@ -194,18 +196,34 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {transactions.map((tx) => (
-              <div key={tx.name} className="flex items-center gap-4 py-4">
-                <span className={`h-11 w-11 rounded-full ${tx.badge}`} />
-                <div className="mr-auto">
-                  <p className="text-sm font-bold">{tx.name}</p>
-                  <p className="text-xs text-slate-400">{tx.type}</p>
-                </div>
-                <p className={`text-sm font-bold ${tx.color}`}>{tx.amount}</p>
-              </div>
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="py-8 text-center space-y-2">
+              <Loader2 className="h-5 w-5 animate-spin text-[#3f3cff] mx-auto" />
+              <p className="text-xs text-slate-400">Fetching live transactions...</p>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              No recent transactions recorded.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {transactions.map((tx) => {
+                const isCredit = tx.type === "DEPOSIT"
+                const amountText = `${isCredit ? "+" : "-"}₦${Math.abs(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+
+                return (
+                  <div key={tx.id} className="flex items-center gap-4 py-4">
+                    <span className={`h-11 w-11 rounded-full ${isCredit ? "bg-emerald-500" : "bg-[#3f3cff]"}`} />
+                    <div className="mr-auto">
+                      <p className="text-sm font-bold text-slate-900">{tx.recipientName || tx.reference}</p>
+                      <p className="text-xs text-slate-400">{tx.type} • {tx.status}</p>
+                    </div>
+                    <p className={`text-sm font-bold ${isCredit ? "text-emerald-500" : "text-slate-950"}`}>{amountText}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </section>
 
         <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
