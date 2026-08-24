@@ -15,6 +15,27 @@ enum Role {
   ADMIN
 }
 
+enum SavingsProductType {
+  FLEXIBLE
+  GOAL_BASED
+  FIXED_LOCKED
+  RECURRING
+}
+
+enum SavingsAccountStatus {
+  ACTIVE
+  LOCKED
+  MATURED
+  CLOSED
+}
+
+enum AutoSaveFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -33,6 +54,7 @@ model User {
   bankAccounts    BankAccount[]
   cards           Card[]
   savingsGoals    SavingsGoal[]
+  savingsAccounts SavingsAccount[]
   userInvestments UserInvestment[]
   notifications   Notification[]
 
@@ -99,10 +121,11 @@ model BankAccount {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactionsSent     Transaction[] @relation("SenderAccount")
-  transactionsReceived Transaction[] @relation("RecipientAccount")
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionsSent     Transaction[]    @relation("SenderAccount")
+  transactionsReceived Transaction[]    @relation("RecipientAccount")
   ledgerEntries        LedgerEntry[]
+  savingsAccounts      SavingsAccount[]
 
   @@map("bank_accounts")
 }
@@ -187,17 +210,60 @@ model SavingsGoal {
   @@map("savings_goals")
 }
 
+model SavingsProduct {
+  id                     String             @id @default(cuid())
+  name                   String
+  productType            SavingsProductType @default(FLEXIBLE) @map("product_type")
+  interestRateAnnual     Float              @default(0.125) @map("interest_rate_annual")
+  minDepositAmount       Float              @default(1000.0) @map("min_deposit_amount")
+  lockPeriodDays         Int                @default(0) @map("lock_period_days")
+  earlyPenaltyPercent    Float              @default(0.0) @map("early_penalty_percent")
+  allowPartialWithdrawal Boolean            @default(true) @map("allow_partial_withdrawal")
+  createdAt              DateTime           @default(now()) @map("created_at")
+
+  savingsAccounts SavingsAccount[]
+
+  @@map("savings_products")
+}
+
+model SavingsAccount {
+  id                   String               @id @default(cuid())
+  userId               String               @map("user_id")
+  productId            String               @map("product_id")
+  primaryBankAccountId String               @map("primary_bank_account_id")
+  accountNumber        String               @unique @map("account_number")
+  title                String
+  principal            Float                @default(0.0)
+  currentBalance       Float                @default(0.0) @map("current_balance")
+  targetAmount         Float?               @map("target_amount")
+  interestAccrued      Float                @default(0.0) @map("interest_accrued")
+  interestRate         Float                @default(0.125) @map("interest_rate")
+  startDate            DateTime             @default(now()) @map("start_date")
+  maturityDate         DateTime?            @map("maturity_date")
+  status               SavingsAccountStatus @default(ACTIVE)
+  autoSaveAmount       Float                @default(0.0) @map("auto_save_amount")
+  autoSaveFrequency    AutoSaveFrequency    @default(NONE) @map("auto_save_frequency")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savingsProduct     SavingsProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  primaryBankAccount BankAccount    @relation(fields: [primaryBankAccountId], references: [id], onDelete: Cascade)
+
+  @@map("savings_accounts")
+}
+
 model InvestmentAsset {
-  id             String   @id @default(cuid())
-  symbol         String   @unique
-  name           String
-  assetType      String   @default("US_EQUITY") @map("asset_type")
-  currentPrice   Float    @map("current_price")
-  currency       String   @default("USD")
-  change24h      Float    @default(0.0) @map("change_24h")
-  riskLevel      String   @default("MODERATE") @map("risk_level")
-  description    String?
-  createdAt      DateTime @default(now()) @map("created_at")
+  id           String   @id @default(cuid())
+  symbol       String   @unique
+  name         String
+  assetType    String   @default("US_EQUITY") @map("asset_type")
+  currentPrice Float    @map("current_price")
+  currency     String   @default("USD")
+  change24h    Float    @default(0.0) @map("change_24h")
+  riskLevel    String   @default("MODERATE") @map("risk_level")
+  description  String?
+  createdAt    DateTime @default(now()) @map("created_at")
 
   userInvestments UserInvestment[]
 
