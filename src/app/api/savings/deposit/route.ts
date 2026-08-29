@@ -5,10 +5,18 @@ import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { createNotification } from "@/lib/notifications"
 import { logAuditEvent } from "@/lib/audit"
-import { apiUnauthorized, apiBadRequest, apiInternalError } from "@/lib/errors"
+import {
+  apiUnauthorized,
+  apiForbidden,
+  apiBadRequest,
+  apiNotFound,
+  apiConflict,
+  apiInternalError,
+} from "@/lib/errors"
 
 export async function POST(request: Request) {
   try {
+    // 1. Authenticate User Session
     const cookieStore = await cookies()
     const authToken = cookieStore.get("auth")?.value
 
@@ -21,28 +29,91 @@ export async function POST(request: Request) {
       return apiUnauthorized(error || "Invalid or expired session")
     }
 
-    const { goalId, amount } = await request.json()
+    // 2. Read Idempotency Key
+    const idempotencyKey =
+      request.headers.get("x-idempotency-key") ||
+      request.headers.get("idempotency-key") ||
+      undefined
 
-    if (!goalId || !amount || Number(amount) <= 0) {
-      return apiBadRequest("Invalid goal ID or deposit amount.")
+    const body = await request.json()
+    const { goalId, savingsAccountId, amount, customReference } = body
+
+    const targetSavingsId = savingsAccountId || goalId
+    if (!targetSavingsId) {
+      return apiBadRequest("Savings account ID or goal ID is required.")
     }
 
     const depositAmount = Number(amount)
-    const { client } = getPrismaClient()
-    const referenceKey = "SAV_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000)
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+      return apiBadRequest("Invalid deposit amount. Amount must be greater than ₦0.00.")
+    }
 
-    if (client.bankAccount && client.savingsGoal && typeof client.$transaction === "function") {
+    const referenceKey =
+      idempotencyKey ||
+      customReference ||
+      `SAV_DEP_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`
+
+    const { client } = getPrismaClient()
+
+    // 3. Idempotency Check
+    if (client.transaction && typeof client.transaction.findUnique === "function") {
+      const existingTx = await client.transaction.findUnique({
+        where: { reference: referenceKey },
+      })
+      if (existingTx) {
+        return apiConflict("Duplicate request detected. Savings deposit already processed.", {
+          transaction: existingTx,
+        })
+      }
+    }
+
+    let updatedSavingsAccount: any = null
+    let updatedPrimaryWallet: any = null
+    let transactionRecord: any = null
+
+    // 4. Prisma Interactive $Transaction
+    if (client.bankAccount && typeof client.$transaction === "function") {
       try {
-        await client.$transaction(async (tx: any) => {
+        const result = await client.$transaction(async (tx: any) => {
+          // Fetch Primary Liquid Wallet
           const primaryAcc = await tx.bankAccount.findFirst({
             where: { userId: user.id, isPrimary: true },
           })
 
           if (!primaryAcc) {
-            throw new Error("No active primary bank account found.")
+            throw new Error("No active primary bank account found for user.")
           }
 
-          // Atomic Balance Decrement Guard: Prevents overdraft!
+          if (primaryAcc.status !== "ACTIVE") {
+            throw new Error("Primary bank account is inactive or restricted.")
+          }
+
+          // Account Ownership & Existence Check
+          let savingsAcc: any = null
+          let isNewSavingsAccountModel = false
+
+          if (tx.savingsAccount && typeof tx.savingsAccount.findUnique === "function") {
+            savingsAcc = await tx.savingsAccount.findUnique({
+              where: { id: targetSavingsId },
+            })
+            if (savingsAcc) isNewSavingsAccountModel = true
+          }
+
+          if (!savingsAcc && tx.savingsGoal && typeof tx.savingsGoal.findUnique === "function") {
+            savingsAcc = await tx.savingsGoal.findUnique({
+              where: { id: targetSavingsId },
+            })
+          }
+
+          if (!savingsAcc) {
+            throw new Error("NOT_FOUND: Target savings account or goal vault not found.")
+          }
+
+          if (savingsAcc.userId !== user.id) {
+            throw new Error("FORBIDDEN: You do not have permission to deposit into this savings account.")
+          }
+
+          // ATOMIC CONCURRENCY DECREMENT GUARD: Prevents Overdraft / Race Conditions!
           const decResult = await tx.bankAccount.updateMany({
             where: {
               id: primaryAcc.id,
@@ -55,41 +126,47 @@ export async function POST(request: Request) {
           })
 
           if (decResult.count === 0) {
-            throw new Error(`Insufficient funds in primary wallet. Available balance: ₦${primaryAcc.balance.toLocaleString()}.00`)
+            throw new Error(`INSUFFICIENT_FUNDS: Insufficient funds in primary wallet. Available balance: ₦${primaryAcc.balance.toLocaleString()}.00`)
           }
 
-          const updatedAcc = await tx.bankAccount.findUnique({
+          const updatedPrimary = await tx.bankAccount.findUnique({
             where: { id: primaryAcc.id },
           })
 
-          // Increment Savings Goal Balance
-          const targetGoal = await tx.savingsGoal.findUnique({
-            where: { id: goalId },
-          })
-
-          if (targetGoal) {
-            await tx.savingsGoal.update({
-              where: { id: goalId },
-              data: { currentAmount: { increment: depositAmount } },
+          // Update Savings Account Balances (Principal + CurrentBalance)
+          if (isNewSavingsAccountModel) {
+            savingsAcc = await tx.savingsAccount.update({
+              where: { id: targetSavingsId },
+              data: {
+                principal: { increment: depositAmount },
+                currentBalance: { increment: depositAmount },
+              },
+            })
+          } else {
+            savingsAcc = await tx.savingsGoal.update({
+              where: { id: targetSavingsId },
+              data: {
+                currentAmount: { increment: depositAmount },
+              },
             })
           }
 
           // Create Unified Transaction Record
-          const transactionRecord = await tx.transaction.create({
+          const txRecord = await tx.transaction.create({
             data: {
               reference: referenceKey,
               senderAccountId: primaryAcc.id,
               senderName: user.name,
-              recipientName: targetGoal?.title || "Savings Vault",
+              recipientName: savingsAcc.title || savingsAcc.accountNumber || "Savings Vault",
               bankName: "BankSpace Savings Vault",
-              accountNumber: primaryAcc.accountNumber,
+              accountNumber: savingsAcc.accountNumber || primaryAcc.accountNumber,
               amount: depositAmount,
               fee: 0.0,
               currency: "NGN",
               type: "SAVINGS_DEPOSIT",
               category: "Savings",
               status: "SUCCESSFUL",
-              description: `Deposit to Savings Vault (${targetGoal?.title || "Goal"})`,
+              description: `Deposit to savings vault (${savingsAcc.title || "Savings Account"})`,
             },
           })
 
@@ -97,37 +174,52 @@ export async function POST(request: Request) {
           if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
             await tx.ledgerEntry.create({
               data: {
-                transactionId: transactionRecord.id,
+                transactionId: txRecord.id,
                 bankAccountId: primaryAcc.id,
                 entryType: "DEBIT",
                 amount: depositAmount,
-                balanceAfter: updatedAcc?.balance || 0.0,
+                balanceAfter: updatedPrimary?.balance || 0.0,
               },
             })
           }
+
+          return { savingsAcc, updatedPrimary, txRecord }
         })
+
+        updatedSavingsAccount = result.savingsAcc
+        updatedPrimaryWallet = result.updatedPrimary
+        transactionRecord = result.txRecord
       } catch (txErr) {
         const msg = txErr instanceof Error ? txErr.message : "Savings deposit failed"
-        if (msg.includes("Insufficient funds")) {
-          return apiBadRequest(msg)
+        if (msg.startsWith("NOT_FOUND:")) return apiNotFound(msg.replace("NOT_FOUND: ", ""))
+        if (msg.startsWith("FORBIDDEN:")) return apiForbidden(msg.replace("FORBIDDEN: ", ""))
+        if (msg.startsWith("INSUFFICIENT_FUNDS:") || msg.includes("inactive")) {
+          return apiBadRequest(msg.replace("INSUFFICIENT_FUNDS: ", ""))
         }
         return apiInternalError(txErr)
       }
     }
 
-    // Trigger Notification & Audit Event
+    // 5. Trigger Notification & Security Audit Log
     await createNotification(
       user.id,
       "Savings Goal Updated 🐷",
-      `Successfully added ₦${depositAmount.toLocaleString()}.00 into your savings goal vault.`,
+      `Successfully deposited ₦${depositAmount.toLocaleString()}.00 into your savings account.`,
       "SUCCESS"
     )
 
-    await logAuditEvent(user.id, "WALLET_DEBIT", `Deposited ₦${depositAmount} into savings goal ${goalId}`)
+    await logAuditEvent(
+      user.id,
+      "WALLET_DEBIT",
+      `Deposited ₦${depositAmount} into savings account ${targetSavingsId}`
+    )
 
     return NextResponse.json({
       success: true,
-      message: `Successfully added ₦${depositAmount.toLocaleString()}.00 to savings vault.`,
+      message: `Successfully deposited ₦${depositAmount.toLocaleString()}.00 into savings account.`,
+      savingsAccount: updatedSavingsAccount,
+      primaryWalletBalance: updatedPrimaryWallet?.balance,
+      transaction: transactionRecord,
     })
   } catch (err) {
     return apiInternalError(err)
