@@ -14,6 +14,7 @@ export type AuditEventType =
   | "WALLET_DEBIT"
   | "WALLET_CREDIT"
   | "WEBHOOK_VERIFIED"
+  | "SAVINGS_GOAL_CREATE"
 
 export async function logAuditEvent(
   userId: string,
