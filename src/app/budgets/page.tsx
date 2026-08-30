@@ -274,7 +274,7 @@ export default function BudgetsPage() {
           ) : budgets.length === 0 ? (
             <div className="rounded-3xl border border-slate-200/80 bg-white p-10 text-center space-y-3">
               <PieChart className="h-10 w-10 text-slate-300 mx-auto" />
-              <h3 className="font-bold text-slate-800 text-base">No Budgets Created Yet</h3>
+              <h3 className="font-bold text-slate-800 text-base">No budgets yet</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
                 Create custom spending caps per category to track your monthly expenses and detect overspending early.
               </p>
@@ -289,7 +289,7 @@ export default function BudgetsPage() {
                 }}
                 className="mt-2 inline-flex items-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-5 py-2.5 text-xs font-semibold text-white shadow-md"
               >
-                <Plus className="h-4 w-4" /> Create First Budget
+                <Plus className="h-4 w-4" /> Create your first budget
               </button>
             </div>
           ) : (

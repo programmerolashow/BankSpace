@@ -165,6 +165,10 @@ export async function POST(request: Request) {
             where: { accountNumber: sanitizedAccount },
           })
 
+          if (recipientAccRecord && recipientAccRecord.id === senderAcc.id) {
+            throw new Error("Self-transfer is not allowed. Please enter a different recipient account number.")
+          }
+
           if (recipientAccRecord) {
             await tx.bankAccount.update({
               where: { id: recipientAccRecord.id },
@@ -202,7 +206,8 @@ export async function POST(request: Request) {
           message.includes("Insufficient funds") ||
           message.includes("daily transaction limit") ||
           message.includes("inactive") ||
-          message.includes("conflict")
+          message.includes("conflict") ||
+          message.includes("Self-transfer")
         ) {
           return apiBadRequest(message)
         }
@@ -210,13 +215,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // Trigger Notification
+    // Trigger Dual Notifications (Sender & Recipient)
     await createNotification(
       user.id,
       "Transfer Successful ↗️",
-      `You successfully transferred ₦${numericAmount.toLocaleString()}.00 to Account ${sanitizedAccount}.`,
+      `You successfully transferred ₦${numericAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} to ${recipientName || sanitizedAccount}.`,
       "SUCCESS"
     )
+
+    // Notify recipient if recipient account is internal BankSpace user
+    if (createdTx && createdTx.recipientAccountId) {
+      const { client: prismaClient } = getPrismaClient()
+      const recipientAccObj = await prismaClient.bankAccount.findUnique({
+        where: { id: createdTx.recipientAccountId },
+        select: { userId: true },
+      }).catch(() => null)
+
+      if (recipientAccObj?.userId && recipientAccObj.userId !== user.id) {
+        await createNotification(
+          recipientAccObj.userId,
+          "Account Credited ↘️",
+          `You received ₦${numericAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} from ${user.name}.`,
+          "SUCCESS"
+        ).catch(() => null)
+      }
+    }
 
     return NextResponse.json({
       success: true,
