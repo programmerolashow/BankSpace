@@ -19,10 +19,24 @@ import {
   ArrowLeftRight,
 } from "lucide-react"
 
+const defaultAcc = {
+  id: "primary_zero",
+  name: "Main Checking Account",
+  type: "Primary Checking",
+  number: "0000000000",
+  bank: "BankSpace Microfinance Bank",
+  balance: 0.0,
+  currency: "₦",
+  color: "from-[#7257ff] via-[#4335eb] to-[#2639d9]",
+  badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  inflow: "₦0.00",
+  outflow: "₦0.00",
+}
+
 export default function AccountsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [accounts, setAccounts] = useState<any[]>([])
-  const [selectedAccount, setSelectedAccount] = useState<any>(null)
+  const [accounts, setAccounts] = useState<any[]>([defaultAcc])
+  const [selectedAccount, setSelectedAccount] = useState<any>(defaultAcc)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -161,7 +175,7 @@ export default function AccountsPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900">Your Bank Accounts</h2>
           {accounts.map((acc) => {
-            const isSelected = selectedAccount.id === acc.id
+            const isSelected = (selectedAccount?.id || defaultAcc.id) === acc.id
 
             return (
               <div
