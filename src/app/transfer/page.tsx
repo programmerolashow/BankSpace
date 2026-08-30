@@ -26,12 +26,17 @@ const beneficiaries = [
 export default function TransferPage() {
   const [sourceAcc, setSourceAcc] = useState("Main Checking (₦0.00)")
   const [accountOptions, setAccountOptions] = useState<string[]>(["Main Checking (₦0.00)"])
+  const [banksList, setBanksList] = useState<any[]>([])
+  const [selectedBankCode, setSelectedBankCode] = useState("000000")
   const [recipientAcc, setRecipientAcc] = useState("")
   const [recipientName, setRecipientName] = useState("")
   const [bankName, setBankName] = useState("BankSpace Microfinance Bank")
   const [category, setCategory] = useState("GENERAL")
   const [amount, setAmount] = useState("")
   const [note, setNote] = useState("")
+
+  const [isResolvingAccount, setIsResolvingAccount] = useState(false)
+  const [accountResolutionSuccess, setAccountResolutionSuccess] = useState<boolean | null>(null)
 
   // Transfer State Machine: "FORM" | "REVIEW" | "PROCESSING" | "RESULT"
   const [step, setStep] = useState<"FORM" | "REVIEW" | "PROCESSING" | "RESULT">("FORM")
@@ -51,7 +56,43 @@ export default function TransferPage() {
         }
       })
       .catch(() => null)
+
+    // Fetch live banks list
+    fetch("/api/banks")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.banks && Array.isArray(data.banks)) {
+          setBanksList(data.banks)
+        }
+      })
+      .catch(() => null)
   }, [])
+
+  // Auto-resolve account name on 10-digit input
+  useEffect(() => {
+    const sanitized = recipientAcc.trim()
+    if (sanitized.length === 10 && /^\d+$/.test(sanitized)) {
+      setIsResolvingAccount(true)
+      setAccountResolutionSuccess(null)
+
+      fetch("/api/banks/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountNumber: sanitized, bankCode: selectedBankCode }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && data.accountName) {
+            setRecipientName(data.accountName)
+            setAccountResolutionSuccess(true)
+          } else {
+            setAccountResolutionSuccess(false)
+          }
+        })
+        .catch(() => setAccountResolutionSuccess(false))
+        .finally(() => setIsResolvingAccount(false))
+    }
+  }, [recipientAcc, selectedBankCode])
 
   const selectBeneficiary = (b: (typeof beneficiaries)[0]) => {
     setRecipientAcc(b.acc)
@@ -197,16 +238,31 @@ export default function TransferPage() {
                     Bank Name
                   </label>
                   <select
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
+                    value={selectedBankCode}
+                    onChange={(e) => {
+                      setSelectedBankCode(e.target.value)
+                      const found = banksList.find((b) => String(b.code) === e.target.value)
+                      if (found) setBankName(found.name)
+                    }}
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#3f3cff]"
                   >
-                    <option>BankSpace Microfinance Bank</option>
-                    <option>GTBank</option>
-                    <option>Zenith Bank</option>
-                    <option>First Bank of Nigeria</option>
-                    <option>Kuda Bank</option>
-                    <option>OPay / Palmpay</option>
+                    {banksList.length > 0 ? (
+                      banksList.map((b) => (
+                        <option key={b.code} value={b.code}>
+                          {b.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="000000">BankSpace Microfinance Bank</option>
+                        <option value="058">Guaranty Trust Bank (GTBank)</option>
+                        <option value="057">Zenith Bank</option>
+                        <option value="044">Access Bank</option>
+                        <option value="011">First Bank of Nigeria</option>
+                        <option value="50211">Kuda Microfinance Bank</option>
+                        <option value="999992">OPay / Palmpay</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
