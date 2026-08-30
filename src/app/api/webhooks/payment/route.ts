@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server"
 import { getPrismaClient } from "@/lib/prisma"
 import { verifyPaystackSignature } from "@/lib/payments"
+import { createNotification } from "@/lib/notifications"
 
 export async function POST(request: Request) {
   try {
@@ -110,7 +111,43 @@ export async function POST(request: Request) {
       }
     }
 
-    // 6. Handle Transfer/Withdrawal Reversal Event (Failed Outbound Payout)
+    // 6. Handle Transfer Success Event (Final Outbound Settlement)
+    if (event === "transfer.success") {
+      if (client.transaction && typeof client.transaction.update === "function") {
+        await client.transaction.update({
+          where: { id: existingTx.id },
+          data: {
+            status: "SUCCESSFUL",
+            providerRef: String(data.id || data.transfer_code || reference),
+          },
+        })
+
+        if (existingTx.senderAccountId) {
+          const senderAcc = await client.bankAccount.findUnique({
+            where: { id: existingTx.senderAccountId },
+            select: { userId: true },
+          })
+          if (senderAcc?.userId) {
+            await createNotification(
+              senderAcc.userId,
+              "Transfer Settlement Confirmed ↗️",
+              `Your transfer of ₦${existingTx.amount.toLocaleString()}.00 to ${existingTx.recipientName} has been settled successfully by the bank network.`,
+              "SUCCESS"
+            ).catch(() => null)
+          }
+        }
+      }
+    }
+
+    // 7. Handle Transfer Processing Event
+    if (event === "transfer.processing") {
+      await client.transaction.update({
+        where: { id: existingTx.id },
+        data: { status: "PROCESSING" },
+      })
+    }
+
+    // 8. Handle Transfer/Withdrawal Reversal Event (Failed Outbound Payout)
     if (event === "transfer.failed" || event === "transfer.reversed") {
       const numericAmount = existingTx.amount + (existingTx.fee || 0.0)
 
@@ -144,6 +181,15 @@ export async function POST(request: Request) {
                   balanceAfter: refundedAccount.balance,
                 },
               })
+            }
+
+            if (senderAcc.userId) {
+              await createNotification(
+                senderAcc.userId,
+                "Transfer Reversed & Refunded 🔄",
+                `Your transfer of ₦${existingTx.amount.toLocaleString()}.00 could not be completed by the bank network. ₦${numericAmount.toLocaleString()}.00 has been refunded to your wallet balance.`,
+                "WARNING"
+              ).catch(() => null)
             }
           }
         })

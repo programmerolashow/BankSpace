@@ -29,7 +29,7 @@ export interface TransferInitiationResult {
   success: boolean
   transferCode?: string
   reference: string
-  status: "SUCCESSFUL" | "PENDING" | "FAILED"
+  status: "SUCCESSFUL" | "PENDING" | "FAILED" | "REVERSED"
   amount: number
   fee: number
   currency: string
@@ -40,7 +40,7 @@ export interface TransferInitiationResult {
 export interface TransferVerificationResult {
   success: boolean
   reference: string
-  status: "SUCCESSFUL" | "PENDING" | "FAILED"
+  status: "SUCCESSFUL" | "PENDING" | "FAILED" | "REVERSED"
   amount: number
   providerRef?: string
   message?: string
