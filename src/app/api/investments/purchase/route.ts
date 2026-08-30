@@ -36,10 +36,11 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { productId, symbol, amount, customReference } = body
 
-    const purchaseAmount = Number(amount)
-    if (isNaN(purchaseAmount) || purchaseAmount <= 0) {
-      return apiBadRequest("Invalid purchase amount. Amount must be greater than ₦0.00.")
+    let purchaseAmount = Number(amount)
+    if (isNaN(purchaseAmount) || purchaseAmount <= 0 || !isFinite(purchaseAmount)) {
+      return apiBadRequest("Invalid purchase amount. Amount must be a positive finite number greater than ₦0.00.")
     }
+    purchaseAmount = Math.round(purchaseAmount * 100) / 100
 
     const referenceKey =
       idempotencyKey ||

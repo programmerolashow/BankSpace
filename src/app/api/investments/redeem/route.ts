@@ -90,11 +90,16 @@ export async function POST(request: Request) {
 
           // Calculate Units & Redemption Valuation
           const totalUnits = holding.unitsOwned
+          const parsedUnits = Number(unitsToRedeem)
+          if (!isFullRedemption && (isNaN(parsedUnits) || parsedUnits <= 0 || !isFinite(parsedUnits))) {
+            throw new Error("BAD_REQUEST: Invalid redemption unit quantity specified.")
+          }
+
           unitsRedeemed = isFullRedemption || !unitsToRedeem
             ? totalUnits
-            : Math.min(totalUnits, Math.max(0.0001, Number(unitsToRedeem)))
+            : Math.min(totalUnits, Math.max(0.0001, parsedUnits))
 
-          if (unitsRedeemed <= 0) {
+          if (unitsRedeemed <= 0 || !isFinite(unitsRedeemed)) {
             throw new Error("BAD_REQUEST: Invalid redemption unit quantity specified.")
           }
 
