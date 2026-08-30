@@ -276,16 +276,25 @@ model InvestmentProduct {
   id                   String             @id @default(cuid())
   symbol               String             @unique
   name                 String
+  description          String?
   category             InvestmentCategory @default(MUTUAL_FUND)
   unitPriceNav         Float              @map("unit_price_nav")
   currency             String             @default("NGN")
+  minInvestmentAmount  Float              @default(1000.0) @map("min_investment_amount")
+  maxInvestmentAmount  Float?             @map("max_investment_amount")
+  minPurchaseUnits     Float              @default(1.0) @map("min_purchase_units")
+  riskLevel            String             @default("MODERATE") @map("risk_level")
+  returnModel          String             @default("VARIABLE_NAV") @map("return_model")
   expectedRateAnnual   Float              @default(0.12) @map("expected_rate_annual")
   managementFeePercent Float              @default(0.01) @map("management_fee_percent")
-  minPurchaseUnits     Float              @default(1.0) @map("min_purchase_units")
+  entryFee             Float              @default(0.0) @map("entry_fee")
   lockPeriodDays       Int                @default(0) @map("lock_period_days")
-  isMaturitySupported  Boolean            @default(false) @map("is_maturity_supported")
-  description          String?
+  durationText         String?            @map("duration_text")
+  liquidity            String             @default("DAILY")
+  isMaturitySupported Boolean            @default(false) @map("is_maturity_supported")
+  status               String             @default("ACTIVE")
   createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
 
   holdings           InvestmentHolding[]
   legacyInvestments UserInvestment[]
