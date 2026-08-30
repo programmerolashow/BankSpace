@@ -30,27 +30,28 @@ type TxData = {
 }
 
 export default function DashboardPage() {
-  const [userName, setUserName] = useState("User")
+  const [userName, setUserName] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("bankspace_user")
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.name) {
+            return parsed.name.trim().split(/\s+/)[0] || "User"
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return "User"
+  })
   const [account, setAccount] = useState<AccountData | null>(null)
   const [transactions, setTransactions] = useState<TxData[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // 1. Initial local storage check for instant load
-    try {
-      const stored = localStorage.getItem("bankspace_user")
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (parsed.name) {
-          const firstName = parsed.name.trim().split(/\s+/)[0] || "User"
-          setUserName(firstName)
-        }
-      }
-    } catch {
-      // Ignore JSON parse error
-    }
-
-    // 2. Authoritative backend fetches
+    // Authoritative backend fetches
     Promise.all([
       fetch("/api/auth/me").then((res) => (res.ok ? res.json() : null)),
       fetch("/api/accounts").then((res) => (res.ok ? res.json() : null)),

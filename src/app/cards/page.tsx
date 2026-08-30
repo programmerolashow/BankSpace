@@ -10,10 +10,7 @@ import {
   EyeOff,
   Globe,
   Zap,
-  Sliders,
   ShieldCheck,
-  CheckCircle2,
-  AlertCircle,
   Copy,
   Check,
 } from "lucide-react"

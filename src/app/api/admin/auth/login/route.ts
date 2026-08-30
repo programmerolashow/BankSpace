@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { loginUser } from "@/lib/auth"
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit"
-import { apiBadRequest, apiForbidden, apiInternalError } from "@/lib/errors"
+import { apiBadRequest, apiForbidden } from "@/lib/errors"
 
 export async function POST(request: Request) {
   try {

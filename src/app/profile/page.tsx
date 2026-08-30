@@ -11,32 +11,36 @@ import {
 export default function ProfilePage() {
   const router = useRouter()
   const [isSaved, setIsSaved] = useState(false)
-  const [formData, setFormData] = useState({
-    fullName: "Illias Omotayo",
-    email: "illias.o@bankspace.com",
-    phone: "+234 812 345 6789",
-    dob: "1994-08-14",
-    address: "14 Victoria Island Expressway, Lagos, Nigeria",
-    tier: "Tier 3 (Verified)",
-    bvn: "22198471209",
+  const [formData, setFormData] = useState(() => {
+    const initial = {
+      fullName: "Illias Omotayo",
+      email: "illias.o@bankspace.com",
+      phone: "+234 812 345 6789",
+      dob: "1994-08-14",
+      address: "14 Victoria Island Expressway, Lagos, Nigeria",
+      tier: "Tier 3 (Verified)",
+      bvn: "22198471209",
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("bankspace_user")
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          return {
+            ...initial,
+            fullName: parsed.name || initial.fullName,
+            email: parsed.email || initial.email,
+            phone: parsed.phone || initial.phone,
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return initial
   })
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("bankspace_user")
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        setFormData((prev) => ({
-          ...prev,
-          fullName: parsed.name || prev.fullName,
-          email: parsed.email || prev.email,
-          phone: parsed.phone || prev.phone,
-        }))
-      }
-    } catch {
-      // Ignore
-    }
-
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {

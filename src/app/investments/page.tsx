@@ -19,15 +19,6 @@ type AssetItem = {
   riskLevel: string
 }
 
-type UserInvestmentItem = {
-  id: string
-  assetId: string
-  unitsOwned: number
-  totalInvested: number
-  currentValue: number
-  asset: AssetItem
-}
-
 type PortfolioMetrics = {
   totalValueUsd: number
   totalValueNgn: number
@@ -52,7 +43,6 @@ export default function InvestmentsPage() {
   const [errorMsg, setErrorMsg] = useState("")
 
   const fetchInvestmentData = async () => {
-    setIsLoading(true)
     try {
       const res = await fetch("/api/investments")
       if (res.ok) {

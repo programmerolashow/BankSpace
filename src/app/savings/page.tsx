@@ -33,7 +33,6 @@ export default function SavingsPage() {
   const [newCategory, setNewCategory] = useState("GENERAL")
 
   const fetchSavingsData = async () => {
-    setIsLoading(true)
     try {
       const res = await fetch("/api/savings")
       if (res.ok) {

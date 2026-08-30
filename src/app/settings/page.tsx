@@ -2,17 +2,11 @@
 
 import { useState } from "react"
 import {
-  Settings,
   Bell,
   Lock,
   ShieldCheck,
-  Globe,
   Sliders,
   CheckCircle2,
-  Moon,
-  Sun,
-  Smartphone,
-  Check,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -26,7 +20,6 @@ export default function SettingsPage() {
     weeklyReport: false,
   })
   const [currency, setCurrency] = useState("NGN (₦)")
-  const [darkMode, setDarkMode] = useState(false)
 
   const saveSettings = () => {
     setIsSaved(true)

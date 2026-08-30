@@ -2,16 +2,11 @@
 
 import { useState } from "react"
 import {
-  PieChart,
   Plus,
   AlertTriangle,
   CheckCircle2,
-  TrendingUp,
   Sparkles,
-  ArrowUpRight,
-  ShieldCheck,
   ShoppingBag,
-  Zap,
   Home,
   Tv,
   Car,
@@ -57,7 +52,7 @@ const budgetCategories = [
 ]
 
 export default function BudgetsPage() {
-  const [budgets, setBudgets] = useState(budgetCategories)
+  const [budgets] = useState(budgetCategories)
 
   const totalAllocated = budgets.reduce((a, b) => a + b.allocated, 0)
   const totalSpent = budgets.reduce((a, b) => a + b.spent, 0)
