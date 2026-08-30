@@ -103,6 +103,21 @@ export async function POST(request: Request) {
 
     const isExternalTransfer = !internalRecipientAcc || (bankCode && bankCode !== "000000")
 
+    // 8. Independently Resolve & Verify Recipient Account Name (Zero Client Trust)
+    let verifiedRecipientName = "Beneficiary"
+
+    if (isExternalTransfer) {
+      const selectedBankCode = bankCode || "058"
+      const resolution = await defaultBankingProvider.resolveAccount(sanitizedAccount, selectedBankCode)
+      if (resolution.success && resolution.accountName) {
+        verifiedRecipientName = resolution.accountName
+      } else {
+        verifiedRecipientName = `Account (${sanitizedAccount.slice(-4)})`
+      }
+    } else if (internalRecipientAcc) {
+      verifiedRecipientName = internalRecipientAcc.accountName || "BankSpace Beneficiary"
+    }
+
     // 8. Self-Transfer Guard
     if (internalRecipientAcc && (internalRecipientAcc.id === senderAcc.id || internalRecipientAcc.userId === user.id)) {
       return apiBadRequest("Self-transfer to your own account is prohibited. Please enter a different beneficiary account number.")
@@ -127,7 +142,7 @@ export async function POST(request: Request) {
       const selectedBankCode = bankCode || "058"
       const recipientRes = await defaultBankingProvider.createTransferRecipient(
         sanitizedAccount,
-        recipientName || "External Beneficiary",
+        verifiedRecipientName,
         selectedBankCode
       )
 
@@ -150,7 +165,7 @@ export async function POST(request: Request) {
             providerRef: providerResult.providerRef || null,
             senderAccountId: senderAcc.id,
             senderName: user.name,
-            recipientName: recipientName || recipientRes.accountName || "External Beneficiary",
+            recipientName: verifiedRecipientName,
             bankName: bankName || "External Bank",
             accountNumber: sanitizedAccount,
             amount: roundedAmount,

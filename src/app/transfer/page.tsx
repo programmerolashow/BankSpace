@@ -247,8 +247,8 @@ export default function TransferPage() {
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#3f3cff]"
                   >
                     {banksList.length > 0 ? (
-                      banksList.map((b) => (
-                        <option key={b.code} value={b.code}>
+                      banksList.map((b, i) => (
+                        <option key={`${b.code}-${b.id || i}`} value={b.code}>
                           {b.name}
                         </option>
                       ))
@@ -278,6 +278,21 @@ export default function TransferPage() {
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#3f3cff]"
                     required
                   />
+                  {isResolvingAccount && (
+                    <p className="mt-1.5 text-xs text-[#3f3cff] font-semibold flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Verifying account with bank provider...
+                    </p>
+                  )}
+                  {!isResolvingAccount && accountResolutionSuccess === true && recipientName && (
+                    <p className="mt-1.5 text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
+                      <UserCheck className="h-3.5 w-3.5" /> Verified Account Name: {recipientName}
+                    </p>
+                  )}
+                  {!isResolvingAccount && accountResolutionSuccess === false && recipientAcc.trim().length === 10 && (
+                    <p className="mt-1.5 text-xs text-rose-600 font-semibold flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" /> Could not resolve account name with provider.
+                    </p>
+                  )}
                 </div>
               </div>
 
