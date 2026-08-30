@@ -270,7 +270,7 @@ export default function SavingsPage() {
             <p className="text-xs text-slate-500 font-semibold">Loading active savings goals...</p>
           </div>
         ) : goals.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400">No active savings goals found.</div>
+          <div className="py-16 text-center text-sm font-medium text-slate-500 rounded-3xl border border-slate-200/80 bg-white p-8">No savings yet.</div>
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
             {goals.map((g) => {

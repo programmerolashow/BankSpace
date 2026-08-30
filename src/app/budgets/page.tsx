@@ -274,7 +274,7 @@ export default function BudgetsPage() {
           ) : budgets.length === 0 ? (
             <div className="rounded-3xl border border-slate-200/80 bg-white p-10 text-center space-y-3">
               <PieChart className="h-10 w-10 text-slate-300 mx-auto" />
-              <h3 className="font-bold text-slate-800 text-base">No budgets yet</h3>
+              <h3 className="font-bold text-slate-800 text-base">No budgets created.</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
                 Create custom spending caps per category to track your monthly expenses and detect overspending early.
               </p>

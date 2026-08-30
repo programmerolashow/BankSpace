@@ -306,8 +306,8 @@ export default function InvestmentsPage() {
             <p className="text-xs text-slate-500 font-semibold">Loading portfolio positions...</p>
           </div>
         ) : holdings.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400 rounded-3xl border border-slate-200/80 bg-white p-8">
-            You do not own any active investment holdings yet. Select a product below to place your first buy order!
+          <div className="py-16 text-center text-sm font-medium text-slate-500 rounded-3xl border border-slate-200/80 bg-white p-8">
+            No investments yet.
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -112,11 +112,17 @@ export default function DashboardPage() {
 
           <div className="relative z-10 flex items-start justify-between">
             <div>
-              <p className="text-sm text-white/75">Total Balance</p>
+              <p className="text-sm text-white/75 font-semibold">Available Balance</p>
               <h2 className="mt-4 text-4xl font-bold">{isLoading ? "..." : displayBalance}</h2>
-              <div className="mt-4 inline-flex rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-200">
-                +12.5% vs last month
-              </div>
+              {account && account.balance > 0 ? (
+                <div className="mt-4 inline-flex rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+                  Active Wallet Balance
+                </div>
+              ) : (
+                <div className="mt-4 text-xs font-medium text-white/80 max-w-xs leading-relaxed">
+                  No funds available yet. Deposit or receive money to get started.
+                </div>
+              )}
             </div>
 
             <button className="rounded-2xl bg-white/15 px-3 py-2 text-white backdrop-blur">
@@ -124,7 +130,7 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <div className="relative z-10 mt-20 flex items-end justify-between">
+          <div className="relative z-10 mt-16 flex items-end justify-between">
             <p className="font-semibold tracking-widest">{maskAccount}</p>
             <p className="text-xl font-black italic">VISA</p>
           </div>
@@ -203,8 +209,8 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400">Fetching live transactions...</p>
             </div>
           ) : transactions.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
-              No recent transactions recorded.
+            <div className="py-12 text-center text-sm font-medium text-slate-500">
+              No transactions yet.
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -235,9 +241,9 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="py-8 text-center text-xs text-slate-400 space-y-2">
-            <p>No active savings goals created.</p>
-            <Link href="/savings" className="inline-block font-bold text-[#3f3cff]">
+          <div className="py-8 text-center space-y-2">
+            <p className="text-sm font-medium text-slate-500">No savings yet.</p>
+            <Link href="/savings" className="inline-block text-xs font-bold text-[#3f3cff]">
               + Create Savings Goal
             </Link>
           </div>

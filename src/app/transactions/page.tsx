@@ -166,7 +166,7 @@ export default function TransactionsPage() {
             <p className="text-xs font-semibold text-slate-500">Loading transactions from database...</p>
           </div>
         ) : transactions.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm">No transactions match your search criteria.</div>
+          <div className="py-16 text-center font-medium text-slate-500 text-sm">No transactions yet.</div>
         ) : (
           <div className="divide-y divide-slate-100">
             {transactions.map((tx) => {
