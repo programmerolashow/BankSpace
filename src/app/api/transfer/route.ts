@@ -33,7 +33,24 @@ export async function POST(request: Request) {
       undefined
 
     const body = await request.json()
-    const { recipientAccount, recipientName, bankName, amount, note, customReference } = body
+    const { recipientAccount, recipientName, bankName, amount, note, customReference, category } = body
+
+    // Infer category if not explicitly provided
+    let txCategory = category ? String(category).trim().toUpperCase() : "GENERAL"
+    if (!category && note) {
+      const noteUpper = String(note).toUpperCase()
+      if (noteUpper.includes("FOOD") || noteUpper.includes("RESTAURANT") || noteUpper.includes("LUNCH") || noteUpper.includes("DINNER") || noteUpper.includes("EAT")) {
+        txCategory = "FOOD"
+      } else if (noteUpper.includes("GROCERY") || noteUpper.includes("SUPERMARKET") || noteUpper.includes("SHOPRITE")) {
+        txCategory = "GROCERIES"
+      } else if (noteUpper.includes("POWER") || noteUpper.includes("ELECTRIC") || noteUpper.includes("WATER") || noteUpper.includes("BILL") || noteUpper.includes("NEPA")) {
+        txCategory = "UTILITIES"
+      } else if (noteUpper.includes("FUEL") || noteUpper.includes("UBER") || noteUpper.includes("BOLT") || noteUpper.includes("CAB") || noteUpper.includes("RIDE")) {
+        txCategory = "TRANSPORT"
+      } else if (noteUpper.includes("CINEMA") || noteUpper.includes("MOVIE") || noteUpper.includes("NETFLIX") || noteUpper.includes("SHOW")) {
+        txCategory = "ENTERTAINMENT"
+      }
+    }
 
     const referenceKey = idempotencyKey || customReference || ("TXN_" + Date.now() + "_" + Math.floor(1000 + Math.random() * 9000))
 
@@ -102,7 +119,7 @@ export async function POST(request: Request) {
               fee: 0.0,
               currency: "NGN",
               type: "TRANSFER",
-              category: "Transfer",
+              category: txCategory,
               status: "PROCESSING",
               description: `Transfer of ₦${numericAmount.toLocaleString()} to ${sanitizedAccount}`,
               note: note || null,
