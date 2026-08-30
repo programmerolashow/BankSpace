@@ -39,6 +39,20 @@ enum AutoSaveFrequency {
   MONTHLY
 }
 
+enum InvestmentCategory {
+  FIXED_INCOME
+  MUTUAL_FUND
+  EQUITY_ETF
+  REAL_ESTATE_NOTE
+}
+
+enum InvestmentHoldingStatus {
+  ACTIVE
+  MATURED
+  LIQUIDATED
+  SUSPENDED
+}
+
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -51,15 +65,16 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  accounts        Account[]
-  sessions        Session[]
-  resetTokens     PasswordResetToken[]
-  bankAccounts    BankAccount[]
-  cards           Card[]
-  savingsGoals    SavingsGoal[]
-  savingsAccounts SavingsAccount[]
-  userInvestments UserInvestment[]
-  notifications   Notification[]
+  accounts           Account[]
+  sessions           Session[]
+  resetTokens        PasswordResetToken[]
+  bankAccounts       BankAccount[]
+  cards              Card[]
+  savingsGoals       SavingsGoal[]
+  savingsAccounts    SavingsAccount[]
+  userInvestments    UserInvestment[]
+  investmentHoldings InvestmentHolding[]
+  notifications      Notification[]
 
   @@map("users")
 }
@@ -124,11 +139,12 @@ model BankAccount {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactionsSent     Transaction[]    @relation("SenderAccount")
-  transactionsReceived Transaction[]    @relation("RecipientAccount")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionsSent     Transaction[]       @relation("SenderAccount")
+  transactionsReceived Transaction[]       @relation("RecipientAccount")
   ledgerEntries        LedgerEntry[]
   savingsAccounts      SavingsAccount[]
+  investmentHoldings   InvestmentHolding[]
 
   @@map("bank_accounts")
 }
@@ -256,6 +272,53 @@ model SavingsAccount {
   @@map("savings_accounts")
 }
 
+model InvestmentProduct {
+  id                   String             @id @default(cuid())
+  symbol               String             @unique
+  name                 String
+  category             InvestmentCategory @default(MUTUAL_FUND)
+  unitPriceNav         Float              @map("unit_price_nav")
+  currency             String             @default("NGN")
+  expectedRateAnnual   Float              @default(0.12) @map("expected_rate_annual")
+  managementFeePercent Float              @default(0.01) @map("management_fee_percent")
+  minPurchaseUnits     Float              @default(1.0) @map("min_purchase_units")
+  lockPeriodDays       Int                @default(0) @map("lock_period_days")
+  isMaturitySupported  Boolean            @default(false) @map("is_maturity_supported")
+  description          String?
+  createdAt            DateTime           @default(now()) @map("created_at")
+
+  holdings           InvestmentHolding[]
+  legacyInvestments UserInvestment[]
+
+  @@map("investment_products")
+}
+
+model InvestmentHolding {
+  id                   String                  @id @default(cuid())
+  userId               String                  @map("user_id")
+  productId            String                  @map("product_id")
+  primaryBankAccountId String                  @map("primary_bank_account_id")
+  accountNumber        String                  @unique @map("account_number")
+  principalInvested    Float                   @default(0.0) @map("principal_invested")
+  unitsOwned           Float                   @default(0.0) @map("units_owned")
+  costBasisUnitPrice   Float                   @map("cost_basis_unit_price")
+  currentUnitPrice     Float                   @map("current_unit_price")
+  currentValue         Float                   @default(0.0) @map("current_value")
+  totalReturns         Float                   @default(0.0) @map("total_returns")
+  accumulatedFees      Float                   @default(0.0) @map("accumulated_fees")
+  purchaseDate         DateTime                @default(now()) @map("purchase_date")
+  maturityDate         DateTime?               @map("maturity_date")
+  status               InvestmentHoldingStatus @default(ACTIVE)
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product            InvestmentProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  primaryBankAccount BankAccount       @relation(fields: [primaryBankAccountId], references: [id], onDelete: Cascade)
+
+  @@map("investment_holdings")
+}
+
 model InvestmentAsset {
   id           String   @id @default(cuid())
   symbol       String   @unique
@@ -283,8 +346,11 @@ model UserInvestment {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  asset InvestmentAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset   InvestmentAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  product InvestmentProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  productId String? @map("product_id")
 
   @@unique([userId, assetId])
   @@map("user_investments")
