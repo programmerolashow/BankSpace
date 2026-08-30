@@ -172,9 +172,9 @@ export async function POST(request: Request) {
             fee: providerResult.fee || 0.0,
             currency: "NGN",
             type: "TRANSFER",
-            category: txCategory,
+            category: "BANK_TRANSFER",
             status: providerResult.status, // "PENDING" or "SUCCESSFUL" from provider
-            description: `External Transfer of ₦${roundedAmount.toLocaleString()} to ${sanitizedAccount}`,
+            description: `External Bank Transfer of ₦${roundedAmount.toLocaleString()} to ${sanitizedAccount}`,
             note: note || null,
           },
         })
@@ -223,9 +223,9 @@ export async function POST(request: Request) {
             fee: 0.0,
             currency: "NGN",
             type: "TRANSFER",
-            category: txCategory,
+            category: "INTERNAL_TRANSFER",
             status: "SUCCESSFUL",
-            description: `Transfer of ₦${roundedAmount.toLocaleString()} to ${verifiedRecipientName}`,
+            description: `Internal Transfer of ₦${roundedAmount.toLocaleString()} to ${verifiedRecipientName}`,
             note: note || null,
           },
         })
@@ -244,7 +244,7 @@ export async function POST(request: Request) {
             fee: 0.0,
             currency: "NGN",
             type: "TRANSFER",
-            category: "TRANSFER_RECEIVED",
+            category: "INCOMING_TRANSFER",
             status: "SUCCESSFUL",
             description: `Transfer of ₦${roundedAmount.toLocaleString()} received from ${user.name}`,
             note: note || null,
