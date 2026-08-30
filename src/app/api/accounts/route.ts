@@ -52,7 +52,7 @@ export async function GET() {
           accountName: user.name,
           bankName: "BankSpace Microfinance Bank",
           accountType: "CHECKING",
-          balance: 850240.0,
+          balance: 0.0,
           pendingBalance: 0.0,
           currency: "NGN",
           status: "ACTIVE",

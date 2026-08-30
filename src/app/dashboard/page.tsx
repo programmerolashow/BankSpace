@@ -73,8 +73,8 @@ export default function DashboardPage() {
       .finally(() => setIsLoading(false))
   }, [])
 
-  const displayBalance = account ? `₦${account.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "₦850,240.00"
-  const maskAccount = account?.accountNumber ? `•••• ${account.accountNumber.slice(-4)}` : "•••• 4598"
+  const displayBalance = account ? `₦${account.balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "₦0.00"
+  const maskAccount = account?.accountNumber ? `•••• ${account.accountNumber.slice(-4)}` : "•••• 0000"
 
   return (
     <div>

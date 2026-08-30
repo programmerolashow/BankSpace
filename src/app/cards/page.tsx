@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   CreditCard,
   Plus,
@@ -15,50 +15,51 @@ import {
   Check,
 } from "lucide-react"
 
-const cardsList = [
-  {
-    id: "card_1",
-    name: "BankSpace Platinum Visa",
-    type: "Physical Credit Card",
-    number: "4598 2210 9948 4598",
-    cvv: "884",
-    exp: "08/28",
-    balance: "₦1,250,450.00",
-    limit: "₦5,000,000.00",
-    status: "Active",
-    bg: "bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9]",
-    brand: "VISA",
-  },
-  {
-    id: "card_2",
-    name: "BankSpace Black Debit",
-    type: "Physical Debit Card",
-    number: "5221 0048 1192 2211",
-    cvv: "312",
-    exp: "11/29",
-    balance: "₦320,500.00",
-    limit: "₦2,000,000.00",
-    status: "Active",
-    bg: "bg-linear-to-br from-[#0f172a] via-[#1e293b] to-[#334155]",
-    brand: "MASTERCARD",
-  },
-  {
-    id: "card_3",
-    name: "Global USD Virtual Card",
-    type: "Virtual Card",
-    number: "4111 8849 2011 9084",
-    cvv: "901",
-    exp: "05/27",
-    balance: "$450.00",
-    limit: "$1,000.00",
-    status: "Active",
-    bg: "bg-linear-to-br from-[#059669] via-[#10b981] to-[#047857]",
-    brand: "VISA VIRTUAL",
-  },
-]
-
 export default function CardsPage() {
-  const [activeCardId, setActiveCardId] = useState(cardsList[0].id)
+  const [cards, setCards] = useState<any[]>([])
+  const [activeCardId, setActiveCardId] = useState<string>("card_1")
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const bal = data?.accounts?.[0]?.balance || 0.0
+        const formattedBal = `₦${Number(bal).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+        setCards([
+          {
+            id: "card_1",
+            name: "BankSpace Platinum Visa",
+            type: "Physical Debit Card",
+            number: data?.accounts?.[0]?.accountNumber ? `4598 2210 ${data.accounts[0].accountNumber.slice(-4)} 4598` : "4598 2210 0000 4598",
+            cvv: "884",
+            exp: "08/28",
+            balance: formattedBal,
+            limit: "₦1,000,000.00",
+            status: "Active",
+            bg: "bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9]",
+            brand: "VISA",
+          },
+        ])
+      })
+      .catch(() => {
+        setCards([
+          {
+            id: "card_1",
+            name: "BankSpace Platinum Visa",
+            type: "Physical Debit Card",
+            number: "4598 2210 0000 4598",
+            cvv: "884",
+            exp: "08/28",
+            balance: "₦0.00",
+            limit: "₦1,000,000.00",
+            status: "Active",
+            bg: "bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9]",
+            brand: "VISA",
+          },
+        ])
+      })
+      .finally(() => setIsLoading(false))
   const [showCardDetails, setShowCardDetails] = useState(false)
   const [frozenState, setFrozenState] = useState<Record<string, boolean>>({})
   const [onlinePayments, setOnlinePayments] = useState(true)
@@ -67,7 +68,19 @@ export default function CardsPage() {
   const [spendLimit, setSpendLimit] = useState(1500000)
   const [copiedNum, setCopiedNum] = useState(false)
 
-  const activeCard = cardsList.find((c) => c.id === activeCardId) || cardsList[0]
+  const activeCard = cards.find((c) => c.id === activeCardId) || cards[0] || {
+    id: "card_1",
+    name: "BankSpace Platinum Visa",
+    type: "Physical Debit Card",
+    number: "4598 2210 0000 4598",
+    cvv: "884",
+    exp: "08/28",
+    balance: "₦0.00",
+    limit: "₦1,000,000.00",
+    status: "Active",
+    bg: "bg-linear-to-br from-[#7257ff] via-[#4335eb] to-[#2639d9]",
+    brand: "VISA",
+  }
   const isFrozen = Boolean(frozenState[activeCard.id])
 
   const toggleFreeze = (id: string) => {

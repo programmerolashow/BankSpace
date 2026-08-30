@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Send,
   CheckCircle2,
@@ -15,8 +15,24 @@ const beneficiaries = [
 ]
 
 export default function TransferPage() {
-  const [sourceAcc, setSourceAcc] = useState("Main Checking (₦850,240.00)")
+  const [sourceAcc, setSourceAcc] = useState("Main Checking (₦0.00)")
+  const [accountOptions, setAccountOptions] = useState<string[]>(["Main Checking (₦0.00)"])
   const [recipientAcc, setRecipientAcc] = useState("")
+
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.accounts && data.accounts.length > 0) {
+          const opts = data.accounts.map(
+            (a: any) => `${a.accountName || "Main Checking"} (₦${Number(a.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })})`
+          )
+          setAccountOptions(opts)
+          setSourceAcc(opts[0])
+        }
+      })
+      .catch(() => null)
+  }, [])
   const [bankName, setBankName] = useState("BankSpace Microfinance Bank")
   const [amount, setAmount] = useState("")
   const [note, setNote] = useState("")
@@ -154,9 +170,9 @@ export default function TransferPage() {
                   onChange={(e) => setSourceAcc(e.target.value)}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-[#3f3cff] focus:ring-2 focus:ring-[#3f3cff]/10"
                 >
-                  <option>Main Checking (₦850,240.00)</option>
-                  <option>Savings Vault (₦320,500.00)</option>
-                  <option>Business Wallet (₦180,900.00)</option>
+                  {accountOptions.map((opt, i) => (
+                    <option key={i}>{opt}</option>
+                  ))}
                 </select>
               </div>
 

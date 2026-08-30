@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   Wallet,
   Plus,
@@ -17,66 +18,70 @@ import {
   Sparkles,
   ArrowLeftRight,
 } from "lucide-react"
-import Link from "next/link"
-
-const initialAccounts = [
-  {
-    id: "acc_1",
-    name: "Main Checking Account",
-    type: "Primary",
-    number: "0123456789",
-    bank: "BankSpace Microfinance Bank",
-    balance: 850240.00,
-    currency: "₦",
-    color: "from-[#7257ff] via-[#4335eb] to-[#2639d9]",
-    badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-    inflow: "₦350,000.00",
-    outflow: "₦120,400.00",
-  },
-  {
-    id: "acc_2",
-    name: "High-Yield Savings Vault",
-    type: "Savings (12% p.a.)",
-    number: "9876543210",
-    bank: "BankSpace Wealth",
-    balance: 320500.00,
-    currency: "₦",
-    color: "from-[#080617] via-[#4924b8] to-[#992aff]",
-    badgeBg: "bg-violet-500/10 text-violet-600 border-violet-500/20",
-    inflow: "₦50,000.00",
-    outflow: "₦0.00",
-  },
-  {
-    id: "acc_3",
-    name: "Business Operations Wallet",
-    type: "Business",
-    number: "5544332211",
-    bank: "BankSpace Corporate",
-    balance: 180900.00,
-    currency: "₦",
-    color: "from-[#1e293b] via-[#334155] to-[#475569]",
-    badgeBg: "bg-sky-500/10 text-sky-600 border-sky-500/20",
-    inflow: "₦210,000.00",
-    outflow: "₦85,000.00",
-  },
-  {
-    id: "acc_4",
-    name: "Global USD Vault",
-    type: "Foreign Currency",
-    number: "USD-8849201",
-    bank: "BankSpace International",
-    balance: 1500.00,
-    currency: "$",
-    color: "from-[#059669] via-[#10b981] to-[#047857]",
-    badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-    inflow: "$500.00",
-    outflow: "$50.00",
-  },
-]
 
 export default function AccountsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [selectedAccount, setSelectedAccount] = useState(initialAccounts[0])
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [selectedAccount, setSelectedAccount] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.accounts && data.accounts.length > 0) {
+          const formatted = data.accounts.map((a: any, idx: number) => ({
+            id: a.id || `acc_${idx}`,
+            name: a.accountName || "Main Checking Account",
+            type: a.isPrimary ? "Primary Checking" : "Savings",
+            number: a.accountNumber || "0000000000",
+            bank: a.bankName || "BankSpace Microfinance Bank",
+            balance: Number(a.balance || 0),
+            currency: a.currency === "USD" ? "$" : "₦",
+            color: idx === 0 ? "from-[#7257ff] via-[#4335eb] to-[#2639d9]" : "from-[#080617] via-[#4924b8] to-[#992aff]",
+            badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+            inflow: `${a.currency === "USD" ? "$" : "₦"}${Number(a.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+            outflow: "₦0.00",
+          }))
+          setAccounts(formatted)
+          setSelectedAccount(formatted[0])
+        } else {
+          const zeroAcc = {
+            id: "primary_zero",
+            name: "Main Checking Account",
+            type: "Primary Checking",
+            number: "0000000000",
+            bank: "BankSpace Microfinance Bank",
+            balance: 0.0,
+            currency: "₦",
+            color: "from-[#7257ff] via-[#4335eb] to-[#2639d9]",
+            badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+            inflow: "₦0.00",
+            outflow: "₦0.00",
+          }
+          setAccounts([zeroAcc])
+          setSelectedAccount(zeroAcc)
+        }
+      })
+      .catch(() => {
+        const zeroAcc = {
+          id: "primary_zero",
+          name: "Main Checking Account",
+          type: "Primary Checking",
+          number: "0000000000",
+          bank: "BankSpace Microfinance Bank",
+          balance: 0.0,
+          currency: "₦",
+          color: "from-[#7257ff] via-[#4335eb] to-[#2639d9]",
+          badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+          inflow: "₦0.00",
+          outflow: "₦0.00",
+        }
+        setAccounts([zeroAcc])
+        setSelectedAccount(zeroAcc)
+      })
+      .finally(() => setIsLoading(false))
+  }, [])
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
@@ -84,9 +89,9 @@ export default function AccountsPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const totalBalanceNGN = initialAccounts.reduce((acc, curr) => {
+  const totalBalanceNGN = accounts.reduce((acc, curr) => {
     if (curr.currency === "₦") return acc + curr.balance
-    return acc + curr.balance * 1600 // approximate rate for USD display
+    return acc + curr.balance * 1600
   }, 0)
 
   return (
@@ -155,7 +160,7 @@ export default function AccountsPage() {
         {/* Accounts List Cards */}
         <section className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900">Your Bank Accounts</h2>
-          {initialAccounts.map((acc) => {
+          {accounts.map((acc) => {
             const isSelected = selectedAccount.id === acc.id
 
             return (

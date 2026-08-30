@@ -130,7 +130,7 @@ model BankAccount {
   accountName    String   @map("account_name")
   bankName       String   @default("BankSpace Microfinance Bank") @map("bank_name")
   accountType    String   @default("CHECKING") @map("account_type")
-  balance        Float    @default(850240.0)
+  balance        Float    @default(0.0)
   pendingBalance Float    @default(0.0) @map("pending_balance")
   currency       String   @default("NGN")
   status         String   @default("ACTIVE")
