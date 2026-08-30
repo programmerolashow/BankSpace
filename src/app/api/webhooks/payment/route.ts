@@ -43,11 +43,92 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: "success", message: "Webhook acknowledged" }, { status: 200 })
     }
 
-    // 3. Find Transaction Record in NeonDB
-    const existingTx = await client.transaction.findUnique({
+    // 3. Find Transaction Record in NeonDB or Resolve Recipient Account
+    let existingTx = await client.transaction.findUnique({
       where: { reference },
       include: { recipientAccount: true, senderAccount: true },
     })
+
+    // If charge.success event arrives for a dedicated NUBAN virtual account deposit without prior DB transaction:
+    if (!existingTx && event === "charge.success") {
+      const receiverAccNumber =
+        data.receiver_account_number ||
+        data.authorization?.receiver_bank_account_number ||
+        data.metadata?.accountNumber ||
+        undefined
+
+      let targetAcc = null
+      if (receiverAccNumber) {
+        targetAcc = await client.bankAccount.findFirst({
+          where: { accountNumber: receiverAccNumber, status: "ACTIVE" },
+        })
+      }
+
+      if (!targetAcc && data.customer?.email) {
+        const foundUser = await client.user.findFirst({
+          where: { email: { equals: data.customer.email, mode: "insensitive" } },
+          include: { bankAccounts: { where: { isPrimary: true } } },
+        })
+        if (foundUser && foundUser.bankAccounts.length > 0) {
+          targetAcc = foundUser.bankAccounts[0]
+        }
+      }
+
+      if (targetAcc) {
+        const numericAmount = Number(data.amount) / 100 // Convert Paystack kobo to NGN
+
+        await client.$transaction(async (tx: any) => {
+          const createdDepositTx = await tx.transaction.create({
+            data: {
+              reference,
+              providerRef: String(data.id || reference),
+              recipientAccountId: targetAcc.id,
+              senderName: data.authorization?.sender_name || data.customer?.first_name || "External Deposit",
+              recipientName: targetAcc.accountName || "BankSpace User",
+              bankName: data.authorization?.bank || "External Bank",
+              accountNumber: targetAcc.accountNumber,
+              amount: numericAmount,
+              fee: Number(data.fees || 0) / 100,
+              currency: "NGN",
+              type: "DEPOSIT",
+              category: "DEPOSIT",
+              status: "SUCCESSFUL",
+              description: `Direct External Deposit of ₦${numericAmount.toLocaleString()} to Virtual Account ${targetAcc.accountNumber}`,
+            },
+          })
+
+          const updatedAccount = await tx.bankAccount.update({
+            where: { id: targetAcc.id },
+            data: { balance: { increment: numericAmount } },
+          })
+
+          if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
+            await tx.ledgerEntry.create({
+              data: {
+                transactionId: createdDepositTx.id,
+                bankAccountId: targetAcc.id,
+                entryType: "CREDIT",
+                amount: numericAmount,
+                balanceAfter: updatedAccount.balance,
+              },
+            })
+          }
+
+          if (targetAcc.userId) {
+            await createNotification(
+              targetAcc.userId,
+              "Account Credited via External Bank Deposit ↘️",
+              `Your Virtual Account ${targetAcc.accountNumber} received ₦${numericAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} via external bank transfer.`,
+              "SUCCESS"
+            ).catch(() => null)
+          }
+        })
+
+        return NextResponse.json({ status: "success", message: "Inbound external deposit settled successfully" }, { status: 200 })
+      }
+
+      return NextResponse.json({ status: "ignored", message: "Transaction reference or virtual account not found" }, { status: 200 })
+    }
 
     if (!existingTx) {
       return NextResponse.json({ status: "ignored", message: "Transaction reference not found" }, { status: 200 })
