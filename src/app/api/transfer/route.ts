@@ -206,28 +206,52 @@ export async function POST(request: Request) {
       })
     } else {
       // -------------------------------------------------------------------
-      // INTERNAL BANKSPACE P2P TRANSFER FLOW
+      // INTERNAL BANKSPACE P2P TRANSFER FLOW (DUAL RECONCILED TRANSACTIONS)
       // -------------------------------------------------------------------
       createdTx = await client.$transaction(async (tx: any) => {
-        const initialTx = await tx.transaction.create({
+        // 1. Sender Outbound Transaction Record (DEBIT)
+        const senderTx = await tx.transaction.create({
           data: {
             reference: referenceKey,
             senderAccountId: senderAcc.id,
+            recipientAccountId: internalRecipientAcc.id,
             senderName: user.name,
-            recipientName: recipientName || internalRecipientAcc.accountName || "Beneficiary",
+            recipientName: verifiedRecipientName,
             bankName: bankName || internalRecipientAcc.bankName || "BankSpace MFB",
-            accountNumber: sanitizedAccount,
+            accountNumber: internalRecipientAcc.accountNumber,
             amount: roundedAmount,
             fee: 0.0,
             currency: "NGN",
             type: "TRANSFER",
             category: txCategory,
-            status: "PROCESSING",
-            description: `Transfer of ₦${roundedAmount.toLocaleString()} to ${sanitizedAccount}`,
+            status: "SUCCESSFUL",
+            description: `Transfer of ₦${roundedAmount.toLocaleString()} to ${verifiedRecipientName}`,
             note: note || null,
           },
         })
 
+        // 2. Recipient Inbound Transaction Record (CREDIT)
+        await tx.transaction.create({
+          data: {
+            reference: `${referenceKey}_REC`,
+            senderAccountId: senderAcc.id,
+            recipientAccountId: internalRecipientAcc.id,
+            senderName: user.name,
+            recipientName: verifiedRecipientName,
+            bankName: "BankSpace MFB",
+            accountNumber: internalRecipientAcc.accountNumber,
+            amount: roundedAmount,
+            fee: 0.0,
+            currency: "NGN",
+            type: "TRANSFER",
+            category: "TRANSFER_RECEIVED",
+            status: "SUCCESSFUL",
+            description: `Transfer of ₦${roundedAmount.toLocaleString()} received from ${user.name}`,
+            note: note || null,
+          },
+        })
+
+        // 3. Debit Sender Balance
         const decrementResult = await tx.bankAccount.updateMany({
           where: { id: senderAcc.id, balance: { gte: roundedAmount }, status: "ACTIVE" },
           data: { balance: { decrement: roundedAmount } },
@@ -239,10 +263,11 @@ export async function POST(request: Request) {
 
         const updatedSender = await tx.bankAccount.findUnique({ where: { id: senderAcc.id } })
 
+        // 4. Sender DEBIT Ledger Entry
         if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
           await tx.ledgerEntry.create({
             data: {
-              transactionId: initialTx.id,
+              transactionId: senderTx.id,
               bankAccountId: senderAcc.id,
               entryType: "DEBIT",
               amount: roundedAmount,
@@ -251,6 +276,7 @@ export async function POST(request: Request) {
           })
         }
 
+        // 5. Credit Recipient Balance
         await tx.bankAccount.update({
           where: { id: internalRecipientAcc.id },
           data: { balance: { increment: roundedAmount } },
@@ -258,10 +284,11 @@ export async function POST(request: Request) {
 
         const updatedRecipient = await tx.bankAccount.findUnique({ where: { id: internalRecipientAcc.id } })
 
+        // 6. Recipient CREDIT Ledger Entry
         if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
           await tx.ledgerEntry.create({
             data: {
-              transactionId: initialTx.id,
+              transactionId: senderTx.id,
               bankAccountId: internalRecipientAcc.id,
               entryType: "CREDIT",
               amount: roundedAmount,
@@ -270,10 +297,7 @@ export async function POST(request: Request) {
           })
         }
 
-        return await tx.transaction.update({
-          where: { id: initialTx.id },
-          data: { status: "SUCCESSFUL", recipientAccountId: internalRecipientAcc.id },
-        })
+        return senderTx
       })
 
       // Notify Internal Recipient

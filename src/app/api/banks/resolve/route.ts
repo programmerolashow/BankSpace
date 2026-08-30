@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
 import { defaultBankingProvider } from "@/lib/bankingProvider"
 import { getPrismaClient } from "@/lib/prisma"
@@ -6,51 +7,93 @@ import { apiBadRequest, apiInternalError } from "@/lib/errors"
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { accountNumber, bankCode } = body
+    const { accountNumber, identifier, bankCode } = body
 
-    const sanitizedAccount = String(accountNumber || "").trim()
-    const sanitizedBankCode = String(bankCode || "").trim()
+    const queryTarget = String(identifier || accountNumber || "").trim()
+    const sanitizedBankCode = String(bankCode || "000000").trim()
 
-    // 1. Validate Account Number Format (Must be exactly 10 NUBAN digits)
-    if (!sanitizedAccount || sanitizedAccount.length !== 10 || !/^\d{10}$/.test(sanitizedAccount)) {
-      return apiBadRequest("Invalid account number. Account number must be exactly 10 digits.")
+    if (!queryTarget) {
+      return apiBadRequest("Recipient identifier (Account Number, Email, Phone, or Name) is required.")
     }
 
-    // 2. Validate Bank Code Parameter
-    if (!sanitizedBankCode) {
-      return apiBadRequest("Bank code parameter is required for account resolution.")
-    }
+    const { client } = getPrismaClient()
 
-    // 3. Handle Internal BankSpace Microfinance Bank Account Resolution
+    // 1. Handle Internal BankSpace Multi-Identifier Lookups
     if (sanitizedBankCode === "000000") {
-      const { client } = getPrismaClient()
-      const internalAcc = await client.bankAccount.findFirst({
-        where: { accountNumber: sanitizedAccount },
-      })
+      let internalAcc = null
+
+      // A. Lookup by 10-Digit Account Number
+      if (/^\d{10}$/.test(queryTarget)) {
+        internalAcc = await client.bankAccount.findFirst({
+          where: { accountNumber: queryTarget },
+          include: { user: true },
+        })
+      }
+
+      // B. Lookup by Email
+      if (!internalAcc && queryTarget.includes("@")) {
+        const foundUser = await client.user.findFirst({
+          where: { email: { equals: queryTarget, mode: "insensitive" } },
+          include: { bankAccounts: true },
+        })
+        if (foundUser && foundUser.bankAccounts.length > 0) {
+          const primary = foundUser.bankAccounts.find((a: any) => a.isPrimary) || foundUser.bankAccounts[0]
+          internalAcc = { ...primary, user: foundUser }
+        }
+      }
+
+      // C. Lookup by Phone Number
+      if (!internalAcc && (queryTarget.startsWith("+") || /^\d{7,15}$/.test(queryTarget))) {
+        const foundUser = await client.user.findFirst({
+          where: { phone: queryTarget },
+          include: { bankAccounts: true },
+        })
+        if (foundUser && foundUser.bankAccounts.length > 0) {
+          const primary = foundUser.bankAccounts.find((a: any) => a.isPrimary) || foundUser.bankAccounts[0]
+          internalAcc = { ...primary, user: foundUser }
+        }
+      }
+
+      // D. Lookup by Username / Name
+      if (!internalAcc) {
+        const cleanName = queryTarget.replace(/^@/, "").trim()
+        const foundUser = await client.user.findFirst({
+          where: { name: { contains: cleanName, mode: "insensitive" } },
+          include: { bankAccounts: true },
+        })
+        if (foundUser && foundUser.bankAccounts.length > 0) {
+          const primary = foundUser.bankAccounts.find((a: any) => a.isPrimary) || foundUser.bankAccounts[0]
+          internalAcc = { ...primary, user: foundUser }
+        }
+      }
 
       if (!internalAcc) {
-        return apiBadRequest(`BankSpace account ${sanitizedAccount} does not exist.`)
+        return apiBadRequest(`BankSpace user or account for '${queryTarget}' was not found.`)
       }
 
       if (internalAcc.status !== "ACTIVE") {
-        return apiBadRequest(`BankSpace account ${sanitizedAccount} is currently suspended or restricted.`)
+        return apiBadRequest(`BankSpace account '${queryTarget}' is currently suspended or restricted.`)
       }
 
       return NextResponse.json({
         success: true,
         accountNumber: internalAcc.accountNumber,
-        accountName: internalAcc.accountName || "BankSpace User",
+        accountName: internalAcc.accountName || internalAcc.user?.name || "BankSpace User",
         bankCode: "000000",
         bankName: "BankSpace Microfinance Bank",
         isInternal: true,
       })
     }
 
-    // 4. Handle External NUBAN Bank Account Resolution via Banking Provider
-    const resolution = await defaultBankingProvider.resolveAccount(sanitizedAccount, sanitizedBankCode)
+    // 2. Handle External NUBAN Bank Account Resolution via Banking Provider
+    if (!/^\d{10}$/.test(queryTarget)) {
+      return apiBadRequest("External bank transfers require a valid 10-digit account number.")
+    }
+
+    const resolution = await defaultBankingProvider.resolveAccount(queryTarget, sanitizedBankCode)
 
     if (!resolution.success || !resolution.accountName) {
-      return apiBadRequest(resolution.message || `Could not resolve account name for ${sanitizedAccount} with bank code ${sanitizedBankCode}.`)
+      return apiBadRequest(resolution.message || `Could not resolve account name for ${queryTarget} with bank code ${sanitizedBankCode}.`)
     }
 
     return NextResponse.json({
