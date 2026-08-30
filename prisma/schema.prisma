@@ -75,6 +75,7 @@ model User {
   userInvestments    UserInvestment[]
   investmentHoldings InvestmentHolding[]
   notifications      Notification[]
+  budgets            Budget[]
 
   @@map("users")
 }
@@ -377,4 +378,32 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+enum BudgetStatus {
+  ACTIVE
+  EXCEEDED
+  CANCELLED
+  EXPIRED
+}
+
+model Budget {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  name      String
+  category  String
+  amount    Float
+  spent     Float        @default(0.0)
+  currency  String       @default("NGN")
+  period    String       @default("MONTHLY")
+  startDate DateTime     @default(now()) @map("start_date")
+  endDate   DateTime?    @map("end_date")
+  status    BudgetStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("budgets")
 }

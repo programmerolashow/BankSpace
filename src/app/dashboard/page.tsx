@@ -166,20 +166,20 @@ export default function DashboardPage() {
             <div className="grid h-36 w-36 shrink-0 place-items-center rounded-full bg-[conic-gradient(#4454ff_0_34%,#ec6fc8_34%_57%,#52c991_57%_83%,#75d4ee_83%_100%)]">
               <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center">
                 <div>
-                  <p className="font-black">₦350,000</p>
-                  <p className="text-xs text-slate-400">Total Spend</p>
+                  <p className="font-black text-sm">
+                    ₦{transactions.reduce((acc, t) => acc + (t.type === "TRANSFER" || t.type === "WITHDRAWAL" ? t.amount || 0 : 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Total Spend</p>
                 </div>
               </div>
             </div>
 
             <div className="w-full space-y-3 text-sm">
               {["Transfers", "Shopping", "Bills & Utilities", "Food & Dining"].map(
-                (item, index) => (
+                (item) => (
                   <div key={item} className="flex items-center justify-between">
                     <span className="text-slate-500">{item}</span>
-                    <span className="font-semibold">
-                      {["₦120,000", "₦80,000", "₦60,000", "₦50,000"][index]}
-                    </span>
+                    <span className="font-semibold text-slate-900">₦0.00</span>
                   </div>
                 )
               )}
@@ -209,7 +209,7 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-slate-100">
               {transactions.map((tx) => {
-                const isCredit = tx.type === "DEPOSIT"
+                const isCredit = tx.type === "DEPOSIT" || tx.type === "SAVINGS_WITHDRAWAL" || tx.type === "INVESTMENT_REDEMPTION" || tx.type === "DIVIDEND_PAYOUT"
                 const amountText = `${isCredit ? "+" : "-"}₦${Math.abs(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
 
                 return (
@@ -235,20 +235,11 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="flex gap-4">
-            <div className="h-16 w-20 rounded-xl bg-linear-to-br from-[#080617] via-[#692fff] to-[#ff7ad9]" />
-            <div className="flex-1">
-              <p className="font-bold">MacBook Pro</p>
-              <p className="mt-1 text-sm font-semibold text-[#3f3cff]">
-                ₦650,000 of ₦1,200,000
-              </p>
-              <div className="mt-3 h-2 rounded-full bg-slate-200">
-                <div className="h-full w-[54%] rounded-full bg-linear-to-r from-[#403eff] to-[#6533ff]" />
-              </div>
-              <p className="mt-2 text-xs text-slate-400">
-                Target date: Dec 31, 2025
-              </p>
-            </div>
+          <div className="py-8 text-center text-xs text-slate-400 space-y-2">
+            <p>No active savings goals created.</p>
+            <Link href="/savings" className="inline-block font-bold text-[#3f3cff]">
+              + Create Savings Goal
+            </Link>
           </div>
 
           <div className="mt-7 rounded-2xl bg-linear-to-r from-[#efeaff] to-[#fff0fb] p-4">

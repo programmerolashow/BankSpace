@@ -275,11 +275,13 @@ export default function AccountsPage() {
             <div className="mt-6 space-y-4">
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50">
                 <span className="text-xs font-semibold text-slate-600">Daily Transfer Limit</span>
-                <span className="text-xs font-bold text-slate-900">₦5,000,000.00</span>
+                <span className="text-xs font-bold text-slate-900">₦1,000,000.00</span>
               </div>
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50">
                 <span className="text-xs font-semibold text-slate-600">Interest Accrued</span>
-                <span className="text-xs font-bold text-emerald-600">+₦12,450.00</span>
+                <span className="text-xs font-bold text-emerald-600">
+                  +₦{Number(selectedAccount.interestAccrued || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50">
                 <span className="text-xs font-semibold text-slate-600">Auto-Save Protection</span>

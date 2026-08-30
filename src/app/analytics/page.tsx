@@ -263,7 +263,9 @@ export default function AnalyticsPage() {
             <h3>Smart Financial Tip</h3>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-slate-700">
-            You spent <strong>14% less</strong> on Dining & Fast Food compared to last month. Redirecting this ₦12,000 saving into your <strong>High-Yield Vault</strong> will add ~₦1,440 annual compound interest!
+            {transactions.length > 0
+              ? "Great cash flow discipline! Redirecting surplus funds into your High-Yield Savings Vault will compound your interest returns annually."
+              : "Start funding your checking wallet or create a savings goal to activate personalized AI cash flow insights!"}
           </p>
           <button className="mt-5 rounded-xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-500/25">
             Auto-Transfer to Savings
