@@ -60,6 +60,7 @@ export default function CardsPage() {
         ])
       })
       .finally(() => setIsLoading(false))
+  }, [])
   const [showCardDetails, setShowCardDetails] = useState(false)
   const [frozenState, setFrozenState] = useState<Record<string, boolean>>({})
   const [onlinePayments, setOnlinePayments] = useState(true)
@@ -127,12 +128,12 @@ export default function CardsPage() {
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">Select Card</h2>
-            <span className="text-xs font-semibold text-[#3f3cff]">{cardsList.length} Cards Active</span>
+            <span className="text-xs font-semibold text-[#3f3cff]">{cards.length} Cards Active</span>
           </div>
 
           {/* Cards Carousel Grid */}
           <div className="grid gap-4 sm:grid-cols-3">
-            {cardsList.map((card) => {
+            {cards.map((card) => {
               const isSelected = card.id === activeCardId
               const cardFrozen = Boolean(frozenState[card.id])
 
