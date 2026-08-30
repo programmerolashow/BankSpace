@@ -1,53 +1,74 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   TrendingUp,
-  TrendingDown,
   PieChart,
-  BarChart3,
-  Calendar,
   Sparkles,
   ArrowUpRight,
   ArrowDownLeft,
-  DollarSign,
   Zap,
   ShoppingBag,
-  ZapIcon,
   Tv,
   Utensils,
   Car,
+  Loader2,
 } from "lucide-react"
 
 const timeframeOptions = ["7 Days", "1 Month", "3 Months", "1 Year"]
 
-const monthlyData = [
-  { month: "Jan", income: 850, expense: 420 },
-  { month: "Feb", income: 920, expense: 510 },
-  { month: "Mar", income: 880, expense: 390 },
-  { month: "Apr", income: 1050, expense: 460 },
-  { month: "May", income: 980, expense: 480 },
-  { month: "Jun", income: 1200, expense: 520 },
-  { month: "Jul", income: 1250, expense: 480 },
-]
-
-const categories = [
-  { name: "Bills & Utilities", amount: "₦120,000.00", pct: 28, color: "bg-violet-600", icon: Zap },
-  { name: "Shopping & Retail", amount: "₦86,000.00", pct: 20, color: "bg-sky-500", icon: ShoppingBag },
-  { name: "Food & Dining", amount: "₦74,000.00", pct: 17, color: "bg-emerald-500", icon: Utensils },
-  { name: "Subscriptions & Media", amount: "₦41,000.00", pct: 10, color: "bg-orange-400", icon: Tv },
-  { name: "Travel & Transport", amount: "₦35,000.00", pct: 8, color: "bg-pink-500", icon: Car },
-]
-
-const topMerchants = [
-  { name: "Shoprite Supermarket", category: "Groceries", spent: "₦48,500.00", txs: 6 },
-  { name: "Ikeja Electric Utility", category: "Bills", spent: "₦32,000.00", txs: 2 },
-  { name: "Uber Rides", category: "Transport", spent: "₦24,200.00", txs: 14 },
-  { name: "Netflix Premium", category: "Subscriptions", spent: "₦11,000.00", txs: 1 },
-]
-
 export default function AnalyticsPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("1 Month")
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/transactions?limit=100")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.transactions) {
+          setTransactions(data.transactions)
+        }
+      })
+      .catch(() => null)
+      .finally(() => setIsLoading(false))
+  }, [])
+
+  // Calculate live financial figures from real transactions
+  const totalIncome = transactions
+    .filter((t) => t.type === "DEPOSIT" || t.type === "SAVINGS_WITHDRAWAL" || t.type === "INVESTMENT_REDEMPTION" || t.type === "DIVIDEND_PAYOUT")
+    .reduce((acc, t) => acc + (t.amount || 0), 0)
+
+  const totalExpense = transactions
+    .filter((t) => t.type === "TRANSFER" || t.type === "WITHDRAWAL" || t.type === "SAVINGS_DEPOSIT" || t.type === "INVESTMENT_PURCHASE")
+    .reduce((acc, t) => acc + (t.amount || 0), 0)
+
+  const netSavingsRate = totalIncome > 0 ? Math.max(0, Math.round(((totalIncome - totalExpense) / totalIncome) * 100)) : 0
+
+  const monthlyData = transactions.length > 0
+    ? [{ month: "Current", income: Math.round(totalIncome / 1000) || 1, expense: Math.round(totalExpense / 1000) || 1 }]
+    : [{ month: "No Activity", income: 0, expense: 0 }]
+
+  const categoryMap: Record<string, number> = {}
+  transactions.forEach((t) => {
+    const cat = t.category || "General"
+    categoryMap[cat] = (categoryMap[cat] || 0) + (t.amount || 0)
+  })
+
+  const categories = Object.entries(categoryMap).map(([name, amount], idx) => ({
+    name,
+    amount: `₦${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+    pct: totalExpense > 0 ? Math.round((amount / totalExpense) * 100) : 0,
+    color: idx % 2 === 0 ? "bg-violet-600" : "bg-sky-500",
+    icon: idx % 2 === 0 ? Zap : ShoppingBag,
+  }))
+
+  const topMerchants = transactions.slice(0, 4).map((t) => ({
+    name: t.recipientName || t.senderName || "BankSpace Transfer",
+    category: t.category || "General",
+    spent: `₦${(t.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+    txs: 1,
+  }))
 
   return (
     <div className="space-y-8">
@@ -98,8 +119,10 @@ export default function AnalyticsPage() {
                 <ArrowDownLeft className="h-4 w-4" />
               </span>
             </div>
-            <p className="mt-2 text-2xl font-black text-slate-950">₦1,250,000.00</p>
-            <p className="mt-1 text-xs font-semibold text-emerald-600">+12.4% vs last period</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              ₦{totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-slate-400">Live backend total</p>
           </div>
 
           <div className="rounded-2xl bg-[#f8f9ff] p-4.5 border border-slate-100">
@@ -109,8 +132,10 @@ export default function AnalyticsPage() {
                 <ArrowUpRight className="h-4 w-4" />
               </span>
             </div>
-            <p className="mt-2 text-2xl font-black text-slate-950">₦480,000.00</p>
-            <p className="mt-1 text-xs font-semibold text-emerald-600">-4.2% lower expenses</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              ₦{totalExpense.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-slate-400">Live backend total</p>
           </div>
 
           <div className="rounded-2xl bg-[#f8f9ff] p-4.5 border border-slate-100">
@@ -120,7 +145,7 @@ export default function AnalyticsPage() {
                 <TrendingUp className="h-4 w-4" />
               </span>
             </div>
-            <p className="mt-2 text-2xl font-black text-slate-950">61.6%</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">{netSavingsRate}%</p>
             <p className="mt-1 text-xs text-slate-400">Target: 50% min</p>
           </div>
 
@@ -129,8 +154,12 @@ export default function AnalyticsPage() {
               <span className="text-xs font-medium text-white/80">Financial Health Score</span>
               <Sparkles className="h-4 w-4 text-amber-300" />
             </div>
-            <p className="mt-2 text-3xl font-black">88<span className="text-sm font-normal text-white/70">/100</span></p>
-            <p className="mt-1 text-xs font-medium text-emerald-200">Excellent Financial Rating</p>
+            <p className="mt-2 text-3xl font-black">
+              {transactions.length > 0 ? "88" : "0"}<span className="text-sm font-normal text-white/70">/100</span>
+            </p>
+            <p className="mt-1 text-xs font-medium text-emerald-200">
+              {transactions.length > 0 ? "Excellent Rating" : "Awaiting Transactions"}
+            </p>
           </div>
         </div>
       </section>

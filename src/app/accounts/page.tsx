@@ -157,14 +157,16 @@ export default function AccountsPage() {
 
           <div className="rounded-2xl bg-[#f8f9ff] p-4.5 border border-slate-100">
             <p className="text-xs font-medium text-slate-500">Total Monthly Inflow</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">₦610,000.00</p>
-            <p className="mt-1 text-xs text-slate-400">Across 4 active accounts</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">
+              ₦{totalBalanceNGN.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">Across {accounts.length} active accounts</p>
           </div>
 
           <div className="rounded-2xl bg-[#f8f9ff] p-4.5 border border-slate-100">
             <p className="text-xs font-medium text-slate-500">Active Accounts</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">4 Accounts</p>
-            <p className="mt-1 text-xs text-[#3f3cff] font-medium">3 NGN Vaults • 1 USD Vault</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{accounts.length} {accounts.length === 1 ? "Account" : "Accounts"}</p>
+            <p className="mt-1 text-xs text-[#3f3cff] font-medium">{accounts.length} Verified Vault</p>
           </div>
         </div>
       </section>

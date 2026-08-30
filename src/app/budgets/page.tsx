@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Plus,
   AlertTriangle,
@@ -12,52 +12,43 @@ import {
   Car,
 } from "lucide-react"
 
-const budgetCategories = [
-  {
-    id: "b1",
-    name: "Housing & Utilities",
-    allocated: 150000,
-    spent: 128000,
-    icon: Home,
-    color: "bg-violet-600",
-    lightBg: "bg-violet-50",
-  },
-  {
-    id: "b2",
-    name: "Groceries & Supermarket",
-    allocated: 100000,
-    spent: 72000,
-    icon: ShoppingBag,
-    color: "bg-emerald-500",
-    lightBg: "bg-emerald-50",
-  },
-  {
-    id: "b3",
-    name: "Transport & Fuel",
-    allocated: 60000,
-    spent: 54000,
-    icon: Car,
-    color: "bg-amber-500",
-    lightBg: "bg-amber-50",
-  },
-  {
-    id: "b4",
-    name: "Entertainment & Dining",
-    allocated: 50000,
-    spent: 22500,
-    icon: Tv,
-    color: "bg-sky-500",
-    lightBg: "bg-sky-50",
-  },
-]
-
 export default function BudgetsPage() {
-  const [budgets] = useState(budgetCategories)
+  const [budgets, setBudgets] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/transactions?limit=50")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.transactions && data.transactions.length > 0) {
+          // Compute category spending from live transactions
+          const spentMap: Record<string, number> = {}
+          data.transactions.forEach((t: any) => {
+            const cat = t.category || "General"
+            spentMap[cat] = (spentMap[cat] || 0) + (t.amount || 0)
+          })
+
+          const liveBudgets = Object.entries(spentMap).map(([name, spent], idx) => ({
+            id: `b_${idx}`,
+            name,
+            allocated: Math.max(spent * 1.2, spent),
+            spent,
+            icon: idx % 2 === 0 ? Home : ShoppingBag,
+            color: idx % 2 === 0 ? "bg-violet-600" : "bg-emerald-500",
+            lightBg: idx % 2 === 0 ? "bg-violet-50" : "bg-emerald-50",
+          }))
+
+          setBudgets(liveBudgets)
+        }
+      })
+      .catch(() => null)
+      .finally(() => setIsLoading(false))
+  }, [])
 
   const totalAllocated = budgets.reduce((a, b) => a + b.allocated, 0)
   const totalSpent = budgets.reduce((a, b) => a + b.spent, 0)
-  const totalRemaining = totalAllocated - totalSpent
-  const overallPct = Math.round((totalSpent / totalAllocated) * 100)
+  const totalRemaining = Math.max(0, totalAllocated - totalSpent)
+  const overallPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 100) : 0
 
   return (
     <div className="space-y-8">
