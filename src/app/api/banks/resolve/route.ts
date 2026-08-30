@@ -82,18 +82,30 @@ export async function POST(request: Request) {
         bankCode: "000000",
         bankName: "BankSpace Microfinance Bank",
         isInternal: true,
+        data: {
+          accountName: internalAcc.accountName || internalAcc.user?.name || "BankSpace User",
+          accountNumber: internalAcc.accountNumber,
+          bankCode: "000000",
+        },
       })
     }
 
     // 2. Handle External NUBAN Bank Account Resolution via Banking Provider
     if (!/^\d{10}$/.test(queryTarget)) {
-      return apiBadRequest("External bank transfers require a valid 10-digit account number.")
+      return apiBadRequest("Account number could not be verified.")
     }
 
     const resolution = await defaultBankingProvider.resolveAccount(queryTarget, sanitizedBankCode)
 
     if (!resolution.success || !resolution.accountName) {
-      return apiBadRequest(resolution.message || `Could not resolve account name for ${queryTarget} with bank code ${sanitizedBankCode}.`)
+      return NextResponse.json(
+        {
+          success: false,
+          message: resolution.message || "Account number could not be verified.",
+          error: resolution.message || "Account number could not be verified.",
+        },
+        { status: 400 }
+      )
     }
 
     return NextResponse.json({
@@ -102,6 +114,11 @@ export async function POST(request: Request) {
       accountName: resolution.accountName,
       bankCode: resolution.bankCode,
       isInternal: false,
+      data: {
+        accountName: resolution.accountName,
+        accountNumber: resolution.accountNumber,
+        bankCode: resolution.bankCode,
+      },
     })
   } catch (err) {
     return apiInternalError(err)

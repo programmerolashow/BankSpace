@@ -5,7 +5,7 @@ import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { calculateHoldingValuation } from "@/lib/investmentValuation"
 import { logAuditEvent } from "@/lib/audit"
-import { apiUnauthorized, apiBadRequest, apiInternalError } from "@/lib/errors"
+import { apiUnauthorized, apiForbidden, apiBadRequest, apiInternalError } from "@/lib/errors"
 
 export async function POST(request: Request) {
   try {
@@ -17,8 +17,12 @@ export async function POST(request: Request) {
     }
 
     const { valid, user, error } = await verifySessionToken(authToken)
-    if (!valid || !user || user.role !== "ADMIN") {
-      return apiUnauthorized(error || "Administrator privileges required.")
+    if (!valid || !user) {
+      return apiUnauthorized(error || "Authentication required. Please log in.")
+    }
+
+    if (user.role !== "ADMIN") {
+      return apiForbidden("Access denied. Administrator privileges required.")
     }
 
     const body = await request.json()

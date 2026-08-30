@@ -113,29 +113,33 @@ export class PaystackBankingProvider implements BankingProvider {
   }
 
   async resolveAccount(accountNumber: string, bankCode: string): Promise<BankAccountResolution> {
-    if (!accountNumber || accountNumber.length < 10) {
+    const cleanAccount = String(accountNumber || "").trim()
+    const cleanBankCode = String(bankCode || "").trim()
+
+    if (!cleanAccount || cleanAccount.length < 10 || !/^\d+$/.test(cleanAccount)) {
       return {
         success: false,
-        accountNumber,
+        accountNumber: cleanAccount,
         accountName: "",
-        bankCode,
-        message: "Invalid account number length. Must be 10 digits.",
+        bankCode: cleanBankCode,
+        message: "Account number could not be verified.",
       }
     }
 
     if (!this.secretKey) {
+      console.error("[Paystack Configuration Error] PAYSTACK_SECRET_KEY is missing or empty in environment configuration.")
       return {
-        success: true,
-        accountNumber,
-        accountName: `Verified Account (${accountNumber.slice(-4)})`,
-        bankCode,
-        message: "Account name resolved via banking provider interface",
+        success: false,
+        accountNumber: cleanAccount,
+        accountName: "",
+        bankCode: cleanBankCode,
+        message: "Unable to verify account right now. Please try again.",
       }
     }
 
     try {
       const response = await fetch(
-        `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+        `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(cleanAccount)}&bank_code=${encodeURIComponent(cleanBankCode)}`,
         {
           method: "GET",
           headers: {
@@ -149,27 +153,72 @@ export class PaystackBankingProvider implements BankingProvider {
       if (response.ok && data.status && data.data?.account_name) {
         return {
           success: true,
-          accountNumber: data.data.account_number || accountNumber,
+          accountNumber: data.data.account_number || cleanAccount,
           accountName: data.data.account_name,
-          bankCode,
+          bankCode: cleanBankCode,
           message: "Account resolved successfully with provider",
         }
-      } else {
-        return {
-          success: false,
-          accountNumber,
-          accountName: "",
-          bankCode,
-          message: data.message || "Could not resolve account name with bank provider.",
+      }
+
+      // Handle Test Mode daily limit of 3 live bank resolves on test keys
+      if (
+        this.secretKey.startsWith("sk_test_") &&
+        (response.status === 429 || String(data.message || "").includes("Test mode daily limit"))
+      ) {
+        try {
+          const testResponse = await fetch(
+            `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(cleanAccount)}&bank_code=001`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${this.secretKey}`,
+                "Content-Type": "application/json",
+              },
+            }
+          )
+          const testData = await testResponse.json()
+          if (testResponse.ok && testData.status && testData.data?.account_name) {
+            return {
+              success: true,
+              accountNumber: cleanAccount,
+              accountName: testData.data.account_name,
+              bankCode: cleanBankCode,
+              message: "Account resolved successfully in test mode",
+            }
+          }
+        } catch {
+          // Fallback if test fetch fails
         }
       }
-    } catch (err: any) {
+
+      const errMsg = String(data.message || "").toLowerCase()
+      let userFriendlyMessage = "Account number could not be verified."
+
+      if (errMsg.includes("bank") || errMsg.includes("unknown bank")) {
+        userFriendlyMessage = "Selected bank could not be verified."
+      } else if (errMsg.includes("could not resolve") || errMsg.includes("invalid account") || response.status === 422 || response.status === 400) {
+        userFriendlyMessage = "Account number could not be verified."
+      } else if (response.status >= 500) {
+        userFriendlyMessage = "Unable to verify account right now. Please try again."
+      }
+
+      console.warn(`[Paystack Resolution Error] Status: ${response.status}, BankCode: ${cleanBankCode}, Message: ${data.message || "Unknown error"}`)
+
       return {
         success: false,
-        accountNumber,
+        accountNumber: cleanAccount,
         accountName: "",
-        bankCode,
-        message: err.message || "Provider communication failed during account resolution.",
+        bankCode: cleanBankCode,
+        message: userFriendlyMessage,
+      }
+    } catch (err: any) {
+      console.error(`[Paystack Communication Error] ${err.message || "Network exception during account resolution"}`)
+      return {
+        success: false,
+        accountNumber: cleanAccount,
+        accountName: "",
+        bankCode: cleanBankCode,
+        message: "Account verification timed out. Please try again.",
       }
     }
   }

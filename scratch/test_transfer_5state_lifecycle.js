@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs")
 
 const prisma = new PrismaClient()
 
-async function test5StateTransferLifecycle() {
+async function testTransfer5StateLifecycle() {
   console.log("==================================================")
   console.log("   5-STATE TRANSFER LIFECYCLE & REVERSAL TEST     ")
   console.log("==================================================\n")
@@ -14,9 +14,6 @@ async function test5StateTransferLifecycle() {
   try {
     const passwordHash = await bcrypt.hash("Password123!", 10)
 
-    // -------------------------------------------------------------------
-    // SETUP: USER A (INITIAL BALANCE: ₦100,000)
-    // -------------------------------------------------------------------
     console.log("▶ SETUP: Creating User A (₦100,000 Initial Wallet)...")
     const userA = await prisma.user.create({
       data: { name: "Lifecycle User A", email: emailA, passwordHash, role: "USER", isVerified: true },
@@ -38,115 +35,112 @@ async function test5StateTransferLifecycle() {
     console.log(`  ✓ User A Account=${walletA.accountNumber}, Initial Balance=₦${walletA.balance.toLocaleString()}.00\n`)
 
     // -------------------------------------------------------------------
-    // STEP 1: INITIATE EXTERNAL TRANSFER (STATUS = PENDING, BALANCE DEBITED)
+    // STEP 1: INITIATE EXTERNAL TRANSFER (STATUS: PENDING, FUNDS RESERVED)
     // -------------------------------------------------------------------
     console.log("▶ STEP 1: Initiating External Transfer of ₦30,000 (Status: PENDING)...")
-    const transferRef = `LIFECYCLE_REF_${timestamp}`
+    const txRef = `LIFECYCLE_REF_${timestamp}`
     const transferAmount = 30000.0
 
-    const pendingTx = await prisma.$transaction(async (tx) => {
-      const initialTx = await tx.transaction.create({
+    const initTx = await prisma.$transaction(async (tx) => {
+      const createdTx = await tx.transaction.create({
         data: {
-          reference: transferRef,
-          providerRef: `prov_${transferRef}`,
+          reference: txRef,
           senderAccountId: walletA.id,
           senderName: userA.name,
-          recipientName: "Zenith External Beneficiary",
-          bankName: "Zenith Bank",
+          recipientName: "External Recipient",
+          bankName: "Guaranty Trust Bank",
           accountNumber: "0123456789",
           amount: transferAmount,
           fee: 0.0,
           currency: "NGN",
           type: "TRANSFER",
-          category: "GENERAL",
-          status: "PENDING", // PENDING status from provider
-          description: `External Transfer of ₦${transferAmount.toLocaleString()} to Zenith Bank`,
+          category: "BANK_TRANSFER",
+          status: "PENDING", // Initiated as PENDING!
         },
       })
 
-      const updatedWallet = await tx.bankAccount.update({
+      const updated = await tx.bankAccount.update({
         where: { id: walletA.id },
         data: { balance: { decrement: transferAmount } },
       })
 
       await tx.ledgerEntry.create({
         data: {
-          transactionId: initialTx.id,
+          transactionId: createdTx.id,
           bankAccountId: walletA.id,
           entryType: "DEBIT",
           amount: transferAmount,
-          balanceAfter: updatedWallet.balance,
+          balanceAfter: updated.balance,
         },
       })
 
-      return initialTx
+      return createdTx
     })
 
-    const walletAfterPending = await prisma.bankAccount.findUnique({ where: { id: walletA.id } })
-    console.log(`  ✓ Transfer Created: Ref=${pendingTx.reference}, Status=${pendingTx.status}`)
-    console.log(`  ✓ User A Reserved Balance After Debit: ₦${walletAfterPending.balance.toLocaleString()}.00 (Expected ₦70,000.00)`)
+    const walletAfterInit = await prisma.bankAccount.findUnique({ where: { id: walletA.id } })
+    console.log(`  ✓ Transfer Created: Ref=${initTx.reference}, Status=${initTx.status}`)
+    console.log(`  ✓ User A Reserved Balance After Debit: ₦${walletAfterInit.balance.toLocaleString()}.00 (Expected ₦70,000.00)`)
 
-    if (pendingTx.status !== "PENDING" || walletAfterPending.balance !== 70000.0) {
-      throw new Error("FAIL: Initial transfer status or balance debit mismatch!")
+    if (initTx.status !== "PENDING" || walletAfterInit.balance !== 70000.0) {
+      throw new Error("FAIL: Transfer initiation in PENDING state failed!")
     }
     console.log("  ✅ STEP 1 PASSED: Transfer Initiated in PENDING State & Funds Reserved\n")
 
     // -------------------------------------------------------------------
-    // STEP 2: SIMULATE PROVIDER REVERSAL WEBHOOK (transfer.failed / transfer.reversed)
+    // STEP 2: PROVIDER REVERSAL WEBHOOK (transfer.failed)
     // -------------------------------------------------------------------
     console.log("▶ STEP 2: Processing Provider Reversal Webhook (transfer.failed)...")
-    const reversalTx = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       await tx.transaction.update({
-        where: { id: pendingTx.id },
+        where: { id: initTx.id },
         data: { status: "REVERSED" },
       })
 
-      const refundedAccount = await tx.bankAccount.update({
+      const updated = await tx.bankAccount.update({
         where: { id: walletA.id },
         data: { balance: { increment: transferAmount } },
       })
 
       await tx.ledgerEntry.create({
         data: {
-          transactionId: pendingTx.id,
+          transactionId: initTx.id,
           bankAccountId: walletA.id,
           entryType: "CREDIT",
           amount: transferAmount,
-          balanceAfter: refundedAccount.balance,
+          balanceAfter: updated.balance,
         },
       })
-
-      return await tx.transaction.findUnique({ where: { id: pendingTx.id } })
     })
 
     const walletAfterReversal = await prisma.bankAccount.findUnique({ where: { id: walletA.id } })
-    console.log(`  ✓ Transaction Status Updated to: "${reversalTx.status}"`)
+    const updatedTxInDB = await prisma.transaction.findUnique({ where: { id: initTx.id } })
+    const ledgerEntries = await prisma.ledgerEntry.findMany({ where: { transactionId: initTx.id } })
+
+    console.log(`  ✓ Transaction Status Updated to: "${updatedTxInDB.status}"`)
     console.log(`  ✓ User A Refunded Wallet Balance: ₦${walletAfterReversal.balance.toLocaleString()}.00 (Expected ₦100,000.00)`)
+    console.log(`  ✓ Double-Entry Ledger Records (DEBIT + CREDIT Reversal): ${ledgerEntries.length}`)
+    ledgerEntries.forEach((l) => console.log(`    • Ledger: ${l.entryType} | Amount: ₦${l.amount.toLocaleString()}.00 | Balance After: ₦${l.balanceAfter.toLocaleString()}.00`))
 
-    if (reversalTx.status !== "REVERSED" || walletAfterReversal.balance !== 100000.0) {
-      throw new Error("FAIL: Reversal wallet refund failed!")
+    if (updatedTxInDB.status !== "REVERSED" || walletAfterReversal.balance !== 100000.0 || ledgerEntries.length !== 2) {
+      throw new Error("FAIL: Provider reversal refund failed!")
     }
-
-    const ledgerRecords = await prisma.ledgerEntry.findMany({ where: { transactionId: pendingTx.id } })
-    console.log(`  ✓ Double-Entry Ledger Records (DEBIT + CREDIT Reversal): ${ledgerRecords.length}`)
-    ledgerRecords.forEach((l) => console.log(`    • Ledger: ${l.entryType} | Amount: ₦${l.amount.toLocaleString()}.00 | Balance After: ₦${l.balanceAfter.toLocaleString()}.00`))
-
-    if (ledgerRecords.length !== 2) throw new Error("FAIL: Ledger records mismatch!")
     console.log("  ✅ STEP 2 PASSED: Webhook Reversal Executed & 100% Refunded to Wallet\n")
 
     // -------------------------------------------------------------------
     // STEP 3: IDEMPOTENT RE-PROCESSING GUARD TEST
     // -------------------------------------------------------------------
     console.log("▶ STEP 3: Testing Idempotence on Re-processed Webhook...")
-    const checkTxStatus = await prisma.transaction.findUnique({ where: { id: pendingTx.id } })
-    console.log(`  ✓ Existing Transaction Status: "${checkTxStatus.status}" (Final State)`)
-    console.log(`  ✓ Re-processing Guard Active: ${checkTxStatus.status === "REVERSED" || checkTxStatus.status === "SUCCESSFUL"}`)
+    const finalTxCheck = await prisma.transaction.findUnique({ where: { id: initTx.id } })
+    const isFinalState = finalTxCheck.status === "REVERSED" || finalTxCheck.status === "SUCCESSFUL"
 
-    const walletAfterDuplicateWebhook = await prisma.bankAccount.findUnique({ where: { id: walletA.id } })
-    console.log(`  ✓ User A Balance After Duplicate Webhook: ₦${walletAfterDuplicateWebhook.balance.toLocaleString()}.00 (Expected ₦100,000.00)`)
+    console.log(`  ✓ Existing Transaction Status: "${finalTxCheck.status}" (Final State)`)
+    console.log(`  ✓ Re-processing Guard Active: ${isFinalState}`)
 
-    if (walletAfterDuplicateWebhook.balance !== 100000.0) {
-      throw new Error("FAIL: Duplicate webhook credited sender twice!")
+    const walletAfterDupCheck = await prisma.bankAccount.findUnique({ where: { id: walletA.id } })
+    console.log(`  ✓ User A Balance After Duplicate Webhook: ₦${walletAfterDupCheck.balance.toLocaleString()}.00 (Expected ₦100,000.00)`)
+
+    if (!isFinalState || walletAfterDupCheck.balance !== 100000.0) {
+      throw new Error("FAIL: Duplicate webhook credited wallet twice!")
     }
     console.log("  ✅ STEP 3 PASSED: Idempotent Reversal Protection Verified (0 Double Credit)\n")
 
@@ -154,8 +148,8 @@ async function test5StateTransferLifecycle() {
     // CLEANUP
     // -------------------------------------------------------------------
     console.log("▶ CLEANUP: Deleting test audit records...")
-    await prisma.ledgerEntry.deleteMany({ where: { transactionId: pendingTx.id } })
-    await prisma.transaction.delete({ where: { id: pendingTx.id } })
+    await prisma.ledgerEntry.deleteMany({ where: { transactionId: initTx.id } })
+    await prisma.transaction.delete({ where: { id: initTx.id } })
     await prisma.bankAccount.delete({ where: { id: walletA.id } })
     await prisma.user.delete({ where: { id: userA.id } })
     console.log("  ✓ Cleanup complete.\n")
@@ -164,11 +158,11 @@ async function test5StateTransferLifecycle() {
     console.log("   🎉 5-STATE LIFECYCLE & REVERSAL TEST PASSED 100%")
     console.log("==================================================")
   } catch (err) {
-    console.error("❌ LIFECYCLE TEST FAILED:", err)
+    console.error("❌ 5-STATE LIFECYCLE TEST FAILED:", err)
     process.exit(1)
   } finally {
     await prisma.$disconnect()
   }
 }
 
-test5StateTransferLifecycle()
+testTransfer5StateLifecycle()

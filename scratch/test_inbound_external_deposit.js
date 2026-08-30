@@ -41,7 +41,7 @@ async function testInboundExternalDeposit() {
     const depositRef = `DEP_INBOUND_${timestamp}`
     const depositAmount = 50000.0
 
-    // Webhook processing logic
+    // Webhook processing logic inside Prisma $transaction
     const createdTx = await prisma.$transaction(async (tx) => {
       const depositTx = await tx.transaction.create({
         data: {
@@ -90,7 +90,7 @@ async function testInboundExternalDeposit() {
     })
 
     // -------------------------------------------------------------------
-    // STEP 2: AUDIT RECONCILED BALANCE, TRANSACTION & LEDGER RECORD
+    // STEP 2: AUDIT RECONCILED DATABASE BALANCE & DOUBLE-ENTRY LEDGER
     // -------------------------------------------------------------------
     console.log("▶ STEP 2: Auditing Reconciled Database Balance & Double-Entry Ledger...")
     const finalWalletA = await prisma.bankAccount.findUnique({ where: { id: walletA.id } })

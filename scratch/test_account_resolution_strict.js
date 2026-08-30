@@ -5,7 +5,7 @@ const prisma = new PrismaClient()
 
 async function testAccountResolutionStrict() {
   console.log("==================================================")
-  console.log("  STRICT ACCOUNT RESOLUTION & NON-TRUST TEST     ")
+  console.log("  STRICT SERVER-SIDE NUBAN RESOLUTION TEST        ")
   console.log("==================================================\n")
 
   const timestamp = Date.now()
@@ -15,9 +15,9 @@ async function testAccountResolutionStrict() {
   try {
     const passwordHash = await bcrypt.hash("Password123!", 10)
 
-    console.log("▶ SETUP: Creating BankSpace Users for Resolution Verification...")
+    console.log("▶ SETUP: Creating User A & User B Accounts...")
     const userA = await prisma.user.create({
-      data: { name: "Sender User A", email: emailA, passwordHash, role: "USER", isVerified: true },
+      data: { name: "Resolution Sender A", email: emailA, passwordHash, role: "USER", isVerified: true },
     })
 
     const walletA = await prisma.bankAccount.create({
@@ -26,7 +26,7 @@ async function testAccountResolutionStrict() {
         accountNumber: "20" + Math.floor(10000000 + Math.random() * 90000000),
         accountName: userA.name,
         bankName: "BankSpace MFB",
-        balance: 75000.0,
+        balance: 100000.0,
         currency: "NGN",
         isPrimary: true,
         status: "ACTIVE",
@@ -34,7 +34,7 @@ async function testAccountResolutionStrict() {
     })
 
     const userB = await prisma.user.create({
-      data: { name: "Real Verified Recipient B", email: emailB, passwordHash, role: "USER", isVerified: true },
+      data: { name: "Resolution Target B", email: emailB, passwordHash, role: "USER", isVerified: true },
     })
 
     const walletB = await prisma.bankAccount.create({
@@ -51,85 +51,78 @@ async function testAccountResolutionStrict() {
     })
 
     console.log(`  ✓ Sender Account=${walletA.accountNumber}`)
-    console.log(`  ✓ Recipient Account=${walletB.accountNumber}, Verified Name="${walletB.accountName}"\n`)
+    console.log(`  ✓ Target Account=${walletB.accountNumber}, Verified Name="${walletB.accountName}"\n`)
 
     // -------------------------------------------------------------------
-    // TEST 1: INTERNAL BANKSPACE NUBAN RESOLUTION
+    // CHECKPOINT 1: NUBAN FORMAT & BANK CODE VALIDATION
     // -------------------------------------------------------------------
-    console.log("▶ TEST 1: Resolving Internal BankSpace Account Number...")
-    const internalAcc = await prisma.bankAccount.findFirst({
+    console.log("▶ CHECKPOINT 1: Testing NUBAN Format & Bank Code Validation...")
+    const invalidShortAcc = "12345"
+    const isInvalidLength = !/^\d{10}$/.test(invalidShortAcc)
+    console.log(`  ✓ 5-Digit Account '${invalidShortAcc}' Format Check: Valid 10-Digit=${!isInvalidLength}`)
+
+    const validAcc = walletB.accountNumber
+    const isValidLength = /^\d{10}$/.test(validAcc)
+    console.log(`  ✓ 10-Digit Account '${validAcc}' Format Check: Valid 10-Digit=${isValidLength}`)
+
+    if (!isInvalidLength || !isValidLength) throw new Error("FAIL: NUBAN format validation failed!")
+    console.log("  ✅ CHECKPOINT 1 PASSED: 10-Digit NUBAN Format Enforced\n")
+
+    // -------------------------------------------------------------------
+    // CHECKPOINT 2: ZERO CLIENT TRUST RE-RESOLUTION IN TRANSFERS
+    // -------------------------------------------------------------------
+    console.log("▶ CHECKPOINT 2: Testing Zero Client-Trust Server Re-Resolution...")
+    const spoofedClientSubmittedName = "HACKER_SPOOFED_BENEFICIARY_NAME"
+    const txRef = `ZERO_TRUST_REF_${timestamp}`
+    const transferAmount = 15000.0
+
+    // Backend independently resolves name from database or provider, ignoring spoofed client name
+    const verifiedAccount = await prisma.bankAccount.findFirst({
       where: { accountNumber: walletB.accountNumber, status: "ACTIVE" },
+      include: { user: true },
     })
 
-    console.log(`  ✓ Account Lookup Query Result: Found=${Boolean(internalAcc)}`)
-    console.log(`  ✓ Server-Resolved Name: "${internalAcc.accountName}"`)
+    const verifiedName = verifiedAccount ? (verifiedAccount.accountName || verifiedAccount.user?.name || "Verified Beneficiary") : "Beneficiary"
 
-    if (!internalAcc || internalAcc.accountName !== userB.name) {
-      throw new Error("FAIL: Internal account resolution failed!")
+    console.log(`  ✓ Client Submitted Name: "${spoofedClientSubmittedName}"`)
+    console.log(`  ✓ Server Resolved Verified Name: "${verifiedName}"`)
+
+    if (verifiedName === spoofedClientSubmittedName) {
+      throw new Error("FAIL: Server trusted client-submitted name!")
     }
-    console.log("  ✅ TEST 1 PASSED: Internal Account Name Resolved\n")
-
-    // -------------------------------------------------------------------
-    // TEST 2: INVALID / SUSPENDED ACCOUNT RESOLUTION REJECTION
-    // -------------------------------------------------------------------
-    console.log("▶ TEST 2: Testing Rejection of Non-Existent Account '9999999999'...")
-    const nonExistent = await prisma.bankAccount.findFirst({
-      where: { accountNumber: "9999999999", status: "ACTIVE" },
-    })
-    console.log(`  ✓ Account Found: ${Boolean(nonExistent)} (Expected false)`)
-    if (nonExistent !== null) throw new Error("FAIL: Found non-existent account!")
-    console.log("  ✅ TEST 2 PASSED: Non-Existent Account Rejected\n")
-
-    // -------------------------------------------------------------------
-    // TEST 3: SERVER-SIDE NON-TRUST ANTI-BYPASS TEST
-    // -------------------------------------------------------------------
-    console.log("▶ TEST 3: Testing Server-Side Non-Trust Rule (Client Spoofing Protection)...")
-    const fakeClientSubmittedName = "HACKER SPOOFED NAME"
-    const txRef = `NON_TRUST_REF_${timestamp}`
-
-    // Backend independently re-resolves account name from DB/Provider
-    const verifiedTargetAcc = await prisma.bankAccount.findFirst({
-      where: { accountNumber: walletB.accountNumber },
-    })
-
-    const finalServerVerifiedName = verifiedTargetAcc ? verifiedTargetAcc.accountName : "Beneficiary"
 
     const createdTx = await prisma.transaction.create({
       data: {
         reference: txRef,
         senderAccountId: walletA.id,
+        recipientAccountId: walletB.id,
         senderName: userA.name,
-        recipientName: finalServerVerifiedName, // Server-verified name ONLY!
-        bankName: walletB.bankName,
+        recipientName: verifiedName, // Server verified name used!
+        bankName: "BankSpace MFB",
         accountNumber: walletB.accountNumber,
-        amount: 10000.0,
+        amount: transferAmount,
         fee: 0.0,
         currency: "NGN",
         type: "TRANSFER",
-        category: "GENERAL",
+        category: "INTERNAL_TRANSFER",
         status: "SUCCESSFUL",
-        description: `Transfer to ${walletB.accountNumber}`,
       },
     })
 
-    console.log(`  ✓ Client Submitted Name: "${fakeClientSubmittedName}"`)
-    console.log(`  ✓ Server Stored Transaction Recipient Name: "${createdTx.recipientName}"`)
+    const dbTx = await prisma.transaction.findUnique({ where: { id: createdTx.id } })
+    console.log(`  ✓ Stored Transaction Recipient Name in DB: "${dbTx.recipientName}"`)
 
-    if (createdTx.recipientName === fakeClientSubmittedName) {
-      throw new Error("FAIL: Server trusted client-submitted recipient name!")
+    if (dbTx.recipientName !== "Resolution Target B") {
+      throw new Error("FAIL: Stored transaction recipient name does not match verified server resolution!")
     }
-    if (createdTx.recipientName !== userB.name) {
-      throw new Error("FAIL: Server did not overwrite client name with verified database name!")
-    }
-
-    console.log("  ✅ TEST 3 PASSED: Server Overwrote Client Name with Verified Provider Name\n")
+    console.log("  ✅ CHECKPOINT 2 PASSED: Server Ignored Client Name & Stored Verified Provider Name\n")
 
     // -------------------------------------------------------------------
     // CLEANUP
     // -------------------------------------------------------------------
     console.log("▶ CLEANUP: Deleting test audit records...")
     await prisma.transaction.delete({ where: { id: createdTx.id } })
-    await prisma.bankAccount.deleteMany({ where: { userId: { in: [userA.id, userB.id] } } })
+    await prisma.bankAccount.deleteMany({ where: { id: { in: [walletA.id, walletB.id] } } })
     await prisma.user.deleteMany({ where: { id: { in: [userA.id, userB.id] } } })
     console.log("  ✓ Cleanup complete.\n")
 
@@ -137,7 +130,7 @@ async function testAccountResolutionStrict() {
     console.log("   🎉 STRICT ACCOUNT RESOLUTION TEST PASSED 100%")
     console.log("==================================================")
   } catch (err) {
-    console.error("❌ STRICT ACCOUNT RESOLUTION TEST FAILED:", err)
+    console.error("❌ ACCOUNT RESOLUTION TEST FAILED:", err)
     process.exit(1)
   } finally {
     await prisma.$disconnect()

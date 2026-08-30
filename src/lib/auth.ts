@@ -269,14 +269,17 @@ export async function verifySessionToken(token: string) {
 }
 
 export async function requireAdminSession(token: string) {
+  if (!token) {
+    return { valid: false, status: 401, error: "Authentication required. Please log in." }
+  }
   const result = await verifySessionToken(token)
   if (!result.valid || !result.user) {
-    return { valid: false, error: result.error || "Unauthenticated session" }
+    return { valid: false, status: 401, error: result.error || "Unauthenticated session" }
   }
   if (result.user.role !== "ADMIN") {
-    return { valid: false, error: "Access denied. Administrator privileges required." }
+    return { valid: false, status: 403, error: "Access denied. Administrator privileges required." }
   }
-  return { valid: true, user: result.user }
+  return { valid: true, status: 200, user: result.user }
 }
 
 export async function revokeSessionToken(token: string) {

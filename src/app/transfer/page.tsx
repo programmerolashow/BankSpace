@@ -37,6 +37,7 @@ export default function TransferPage() {
 
   const [isResolvingAccount, setIsResolvingAccount] = useState(false)
   const [accountResolutionSuccess, setAccountResolutionSuccess] = useState<boolean | null>(null)
+  const [resolutionErrorMessage, setResolutionErrorMessage] = useState("")
 
   // Transfer State Machine: "FORM" | "REVIEW" | "PROCESSING" | "RESULT"
   const [step, setStep] = useState<"FORM" | "REVIEW" | "PROCESSING" | "RESULT">("FORM")
@@ -74,23 +75,38 @@ export default function TransferPage() {
     if (sanitized.length === 10 && /^\d+$/.test(sanitized)) {
       setIsResolvingAccount(true)
       setAccountResolutionSuccess(null)
+      setResolutionErrorMessage("")
 
       fetch("/api/banks/resolve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountNumber: sanitized, bankCode: selectedBankCode }),
       })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.success && data.accountName) {
-            setRecipientName(data.accountName)
+        .then(async (res) => {
+          const data = await res.json().catch(() => null)
+          const name = data?.data?.accountName || data?.accountName
+          if (res.ok && data?.success && name) {
+            setRecipientName(name)
             setAccountResolutionSuccess(true)
+            setResolutionErrorMessage("")
           } else {
+            setRecipientName("")
             setAccountResolutionSuccess(false)
+            setResolutionErrorMessage(
+              data?.message || data?.error || "Account number could not be verified. Please check the bank and account number."
+            )
           }
         })
-        .catch(() => setAccountResolutionSuccess(false))
+        .catch(() => {
+          setRecipientName("")
+          setAccountResolutionSuccess(false)
+          setResolutionErrorMessage("Account verification timed out. Please try again.")
+        })
         .finally(() => setIsResolvingAccount(false))
+    } else {
+      setAccountResolutionSuccess(null)
+      setRecipientName("")
+      setResolutionErrorMessage("")
     }
   }, [recipientAcc, selectedBankCode])
 
@@ -108,6 +124,16 @@ export default function TransferPage() {
     const sanitizedAcc = String(recipientAcc || "").trim()
     if (!sanitizedAcc || sanitizedAcc.length < 10 || !/^\d+$/.test(sanitizedAcc)) {
       setErrorMessage("Please enter a valid 10-digit account number.")
+      return
+    }
+
+    if (isResolvingAccount) {
+      setErrorMessage("Verifying account details with bank provider... Please wait.")
+      return
+    }
+
+    if (accountResolutionSuccess === false || !recipientName) {
+      setErrorMessage(resolutionErrorMessage || "Account number could not be verified. Please check the bank and account number.")
       return
     }
 
@@ -290,7 +316,7 @@ export default function TransferPage() {
                   )}
                   {!isResolvingAccount && accountResolutionSuccess === false && recipientAcc.trim().length === 10 && (
                     <p className="mt-1.5 text-xs text-rose-600 font-semibold flex items-center gap-1">
-                      <AlertCircle className="h-3.5 w-3.5" /> Could not resolve account name with provider.
+                      <AlertCircle className="h-3.5 w-3.5" /> {resolutionErrorMessage || "Could not resolve account name with provider."}
                     </p>
                   )}
                 </div>
