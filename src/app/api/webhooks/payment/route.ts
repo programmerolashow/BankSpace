@@ -77,54 +77,68 @@ export async function POST(request: Request) {
       if (targetAcc) {
         const numericAmount = Number(data.amount) / 100 // Convert Paystack kobo to NGN
 
-        await client.$transaction(async (tx: any) => {
-          const createdDepositTx = await tx.transaction.create({
-            data: {
-              reference,
-              providerRef: String(data.id || reference),
-              recipientAccountId: targetAcc.id,
-              senderName: data.authorization?.sender_name || data.customer?.first_name || "External Deposit",
-              recipientName: targetAcc.accountName || "BankSpace User",
-              bankName: data.authorization?.bank || "External Bank",
-              accountNumber: targetAcc.accountNumber,
-              amount: numericAmount,
-              fee: Number(data.fees || 0) / 100,
-              currency: "NGN",
-              type: "DEPOSIT",
-              category: "DEPOSIT",
-              status: "SUCCESSFUL",
-              description: `Direct External Deposit of ₦${numericAmount.toLocaleString()} to Virtual Account ${targetAcc.accountNumber}`,
-            },
-          })
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+          return NextResponse.json({ message: "Invalid deposit amount in payload" }, { status: 400 })
+        }
 
-          const updatedAccount = await tx.bankAccount.update({
-            where: { id: targetAcc.id },
-            data: { balance: { increment: numericAmount } },
-          })
-
-          if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
-            await tx.ledgerEntry.create({
+        try {
+          await client.$transaction(async (tx: any) => {
+            const createdDepositTx = await tx.transaction.create({
               data: {
-                transactionId: createdDepositTx.id,
-                bankAccountId: targetAcc.id,
-                entryType: "CREDIT",
+                reference,
+                providerRef: String(data.id || reference),
+                recipientAccountId: targetAcc.id,
+                senderName: data.authorization?.sender_name || data.customer?.first_name || "External Deposit",
+                recipientName: targetAcc.accountName || "BankSpace User",
+                bankName: data.authorization?.bank || "External Bank",
+                accountNumber: targetAcc.accountNumber,
                 amount: numericAmount,
-                balanceAfter: updatedAccount.balance,
+                fee: Number(data.fees || 0) / 100,
+                currency: "NGN",
+                type: "DEPOSIT",
+                category: "DEPOSIT",
+                status: "SUCCESSFUL",
+                description: `Direct External Deposit of ₦${numericAmount.toLocaleString()} to Virtual Account ${targetAcc.accountNumber}`,
               },
             })
-          }
 
-          if (targetAcc.userId) {
-            await createNotification(
-              targetAcc.userId,
-              "Account Credited via External Bank Deposit ↘️",
-              `Your Virtual Account ${targetAcc.accountNumber} received ₦${numericAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} via external bank transfer.`,
-              "SUCCESS"
-            ).catch(() => null)
-          }
-        })
+            const updatedAccount = await tx.bankAccount.update({
+              where: { id: targetAcc.id },
+              data: { balance: { increment: numericAmount } },
+            })
 
-        return NextResponse.json({ status: "success", message: "Inbound external deposit settled successfully" }, { status: 200 })
+            if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
+              await tx.ledgerEntry.create({
+                data: {
+                  transactionId: createdDepositTx.id,
+                  bankAccountId: targetAcc.id,
+                  entryType: "CREDIT",
+                  amount: numericAmount,
+                  balanceAfter: updatedAccount.balance,
+                },
+              })
+            }
+
+            if (targetAcc.userId) {
+              await createNotification(
+                targetAcc.userId,
+                "Account Credited via External Bank Deposit ↘️",
+                `Your Virtual Account ${targetAcc.accountNumber} received ₦${numericAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} via external bank transfer.`,
+                "SUCCESS"
+              ).catch(() => null)
+            }
+          })
+
+          return NextResponse.json({ status: "success", message: "Inbound external deposit settled successfully" }, { status: 200 })
+        } catch (dbErr: any) {
+          if (dbErr?.code === "P2002" || String(dbErr?.message || "").includes("Unique constraint")) {
+            return NextResponse.json(
+              { status: "already_processed", message: "Idempotent event acknowledged. Duplicate transaction reference caught by unique constraint." },
+              { status: 200 }
+            )
+          }
+          throw dbErr
+        }
       }
 
       return NextResponse.json({ status: "ignored", message: "Transaction reference or virtual account not found" }, { status: 200 })
