@@ -196,7 +196,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       try {
         await client.auditLog.create({
           data: {
-            userId: authCheck.user.id,
+            userId: authCheck.user?.id || userId,
             action: `ADMIN_ACTION_${action}`,
             resource: `USER_${userId}`,
             details: reason || `Administrative action ${action} executed for user ${userId}`,
