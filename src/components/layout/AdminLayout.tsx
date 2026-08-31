@@ -89,7 +89,7 @@ const adminNavSections: NavSection[] = [
   },
 ]
 
-function AdminLayoutInner({ children }: { children: React.ReactNode }) {
+function AdminLayoutInner({ children }: { children: React.ReactNode; title?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -348,10 +348,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
-      <AdminLayoutInner>{children}</AdminLayoutInner>
+      <AdminLayoutInner title={title}>{children}</AdminLayoutInner>
     </Suspense>
   )
 }

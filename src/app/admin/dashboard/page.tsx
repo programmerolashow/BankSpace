@@ -495,10 +495,10 @@ function AdminDashboardContent() {
                           </td>
                           <td className="py-4 text-right space-x-2">
                             <button
-                              onClick={() => handleInspectUserDetail(u.id)}
+                              onClick={() => router.push(`/admin/users/${u.id}`)}
                               className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer border border-slate-700"
                             >
-                              View Details
+                              View Profile
                             </button>
                             {primaryAcc && u.role !== "ADMIN" && (
                               <button
