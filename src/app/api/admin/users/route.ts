@@ -3,99 +3,116 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requireAdminSession } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
-import { apiForbidden, apiInternalError } from "@/lib/errors"
+import { apiUnauthorized, apiForbidden, apiInternalError } from "@/lib/errors"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const cookieStore = await cookies()
     const authToken = cookieStore.get("auth")?.value || ""
 
     const authCheck = await requireAdminSession(authToken)
     if (!authCheck.valid) {
+      if (authCheck.status === 401) {
+        return apiUnauthorized(authCheck.error || "Authentication required. Please log in.")
+      }
       return apiForbidden(authCheck.error || "Administrator privileges required.")
     }
 
+    const { searchParams } = new URL(request.url)
+    const page = Math.max(Number(searchParams.get("page") || 1), 1)
+    const limit = Math.max(Math.min(Number(searchParams.get("limit") || 10), 100), 1)
+    const search = searchParams.get("search")?.trim() || ""
+    const status = searchParams.get("status")?.trim() || "ALL"
+    const sortBy = searchParams.get("sortBy")?.trim() || "createdAt"
+    const sortOrder = searchParams.get("sortOrder")?.trim().toLowerCase() === "asc" ? "asc" : "desc"
+
+    const skip = (page - 1) * limit
     const { client } = getPrismaClient()
-    let users: any[] = []
 
-    if (client.user && typeof client.user.findMany === "function") {
-      try {
-        users = await client.user.findMany({
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            isVerified: true,
-            phone: true,
-            createdAt: true,
-            bankAccounts: {
-              select: {
-                id: true,
-                accountNumber: true,
-                accountName: true,
-                bankName: true,
-                balance: true,
-                status: true,
-                isPrimary: true,
-              },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 50,
-        })
-      } catch (err) {
-        console.warn("[Admin Users DB Notice]:", err)
-      }
-    }
+    const where: any = {}
 
-    // Default mock admin view users if new database
-    if (users.length === 0) {
-      users = [
-        {
-          id: "demo_user_123",
-          name: "Illias Olanrewaju",
-          email: "user@bankite.com",
-          role: "USER",
-          isVerified: true,
-          phone: "+234 812 345 6789",
-          createdAt: new Date().toISOString(),
-          bankAccounts: [
-            {
-              id: "acc_101",
-              accountNumber: "2019482910",
-              accountName: "Illias Olanrewaju",
-              bankName: "BankSpace MFB",
-              balance: 0.0,
-              status: "ACTIVE",
-              isPrimary: true,
-            },
-          ],
-        },
-        {
-          id: "usr_992",
-          name: "Michael Okon",
-          email: "m.okon@kudabank.com",
-          role: "USER",
-          isVerified: true,
-          phone: "+234 809 112 2334",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          bankAccounts: [
-            {
-              id: "acc_102",
-              accountNumber: "2019482911",
-              accountName: "Michael Okon",
-              bankName: "Kuda Bank",
-              balance: 0.0,
-              status: "ACTIVE",
-              isPrimary: true,
-            },
-          ],
-        },
+    // 1. Search filter (Name, Email, Phone, NUBAN)
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" } },
+        { bankAccounts: { some: { accountNumber: { contains: search, mode: "insensitive" } } } },
       ]
     }
 
-    return NextResponse.json({ users })
+    // 2. Status filter (Active, Suspended, Verified, Unverified, Pending Verification)
+    if (status === "ACTIVE") {
+      where.bankAccounts = { some: { status: "ACTIVE" } }
+    } else if (status === "SUSPENDED") {
+      where.bankAccounts = { some: { status: "FROZEN" } }
+    } else if (status === "VERIFIED") {
+      where.isVerified = true
+    } else if (status === "UNVERIFIED" || status === "PENDING_VERIFICATION") {
+      where.isVerified = false
+    }
+
+    // 3. Sorting
+    let orderBy: any = { createdAt: sortOrder }
+    if (sortBy === "name") orderBy = { name: sortOrder }
+    if (sortBy === "email") orderBy = { email: sortOrder }
+
+    let users: any[] = []
+    let totalUsers = 0
+
+    if (client.user && typeof client.user.findMany === "function") {
+      try {
+        const [uList, count] = await Promise.all([
+          client.user.findMany({
+            where,
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              isVerified: true,
+              phone: true,
+              createdAt: true,
+              bankAccounts: {
+                select: {
+                  id: true,
+                  accountNumber: true,
+                  accountName: true,
+                  bankName: true,
+                  balance: true,
+                  status: true,
+                  isPrimary: true,
+                },
+              },
+            },
+            orderBy,
+            skip,
+            take: limit,
+          }),
+          client.user.count({ where }),
+        ])
+
+        users = uList
+        totalUsers = count
+      } catch (err) {
+        console.warn("[Admin Users DB Query Notice]:", err)
+      }
+    }
+
+    const totalPages = Math.ceil(totalUsers / limit) || 1
+
+    return NextResponse.json({
+      success: true,
+      users,
+      pagination: {
+        total: totalUsers,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    })
   } catch (err) {
     return apiInternalError(err)
   }

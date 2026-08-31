@@ -1,6 +1,3 @@
-// This is your Prisma schema file for BankSpace PostgreSQL database
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,6 +5,336 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String               @id @default(cuid())
+  name               String
+  email              String               @unique
+  passwordHash       String?              @map("password_hash")
+  role               Role                 @default(USER)
+  isVerified         Boolean              @default(true) @map("is_verified")
+  phone              String?
+  avatarUrl          String?              @map("avatar_url")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  accounts           Account[]
+  bankAccounts       BankAccount[]
+  budgets            Budget[]
+  cards              Card[]
+  investmentHoldings InvestmentHolding[]
+  notifications      Notification[]
+  resetTokens        PasswordResetToken[]
+  savingsAccounts    SavingsAccount[]
+  savingsGoals       SavingsGoal[]
+  sessions           Session[]
+  userInvestments    UserInvestment[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  accessToken       String?  @map("access_token")
+  refreshToken      String?  @map("refresh_token")
+  expiresAt         Int?     @map("expires_at")
+  idToken           String?  @map("id_token")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model BankAccount {
+  id                   String              @id @default(cuid())
+  userId               String              @map("user_id")
+  accountNumber        String              @unique @map("account_number")
+  accountName          String              @map("account_name")
+  bankName             String              @default("BankSpace Microfinance Bank") @map("bank_name")
+  accountType          String              @default("CHECKING") @map("account_type")
+  balance              Float               @default(0.0)
+  currency             String              @default("NGN")
+  isPrimary            Boolean             @default(true) @map("is_primary")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  dailyLimit           Float               @default(1000000.0) @map("daily_limit")
+  pendingBalance       Float               @default(0.0) @map("pending_balance")
+  status               String              @default("ACTIVE")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investmentHoldings   InvestmentHolding[]
+  ledgerEntries        LedgerEntry[]
+  savingsAccounts      SavingsAccount[]
+  transactionsReceived Transaction[]       @relation("RecipientAccount")
+  transactionsSent     Transaction[]       @relation("SenderAccount")
+
+  @@map("bank_accounts")
+}
+
+model Transaction {
+  id                 String        @id @default(cuid())
+  reference          String        @unique
+  senderAccountId    String?       @map("sender_account_id")
+  recipientAccountId String?       @map("recipient_account_id")
+  senderName         String        @map("sender_name")
+  recipientName      String        @map("recipient_name")
+  bankName           String        @map("bank_name")
+  accountNumber      String        @map("account_number")
+  amount             Float
+  fee                Float         @default(0.0)
+  type               String        @default("TRANSFER")
+  category           String        @default("Transfer")
+  status             String        @default("SUCCESSFUL")
+  note               String?
+  createdAt          DateTime      @default(now()) @map("created_at")
+  currency           String        @default("NGN")
+  description        String?
+  metadata           String?
+  providerRef        String?       @map("provider_ref")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  ledgerEntries      LedgerEntry[]
+  recipientAccount   BankAccount?  @relation("RecipientAccount", fields: [recipientAccountId], references: [id])
+  senderAccount      BankAccount?  @relation("SenderAccount", fields: [senderAccountId], references: [id])
+
+  @@map("transactions")
+}
+
+model LedgerEntry {
+  id            String      @id @default(cuid())
+  transactionId String      @map("transaction_id")
+  bankAccountId String      @map("bank_account_id")
+  entryType     String      @map("entry_type")
+  amount        Float
+  balanceAfter  Float       @map("balance_after")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("ledger_entries")
+}
+
+model Card {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  cardHolderName String   @map("card_holder_name")
+  maskedPan      String   @map("masked_pan")
+  cardType       String   @default("VISA") @map("card_type")
+  cardCategory   String   @default("VIRTUAL") @map("card_category")
+  expiryDate     String   @map("expiry_date")
+  status         String   @default("ACTIVE")
+  spendingLimit  Float    @default(500000.0) @map("spending_limit")
+  colorScheme    String   @default("PURPLE") @map("color_scheme")
+  createdAt      DateTime @default(now()) @map("created_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cards")
+}
+
+model SavingsGoal {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  title         String
+  targetAmount  Float    @map("target_amount")
+  currentAmount Float    @default(0.0) @map("current_amount")
+  targetDate    String?  @map("target_date")
+  category      String   @default("GENERAL")
+  createdAt     DateTime @default(now()) @map("created_at")
+  gradient      String   @default("from-[#080617] via-[#692fff] to-[#ff7ad9]")
+  status        String   @default("ACTIVE")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("savings_goals")
+}
+
+model SavingsProduct {
+  id                     String             @id @default(cuid())
+  name                   String
+  productType            SavingsProductType @default(FLEXIBLE) @map("product_type")
+  interestRateAnnual     Float              @default(0.125) @map("interest_rate_annual")
+  minDepositAmount       Float              @default(1000.0) @map("min_deposit_amount")
+  lockPeriodDays         Int                @default(0) @map("lock_period_days")
+  earlyPenaltyPercent    Float              @default(0.0) @map("early_penalty_percent")
+  allowPartialWithdrawal Boolean            @default(true) @map("allow_partial_withdrawal")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  savingsAccounts        SavingsAccount[]
+
+  @@map("savings_products")
+}
+
+model SavingsAccount {
+  id                   String               @id @default(cuid())
+  userId               String               @map("user_id")
+  productId            String               @map("product_id")
+  primaryBankAccountId String               @map("primary_bank_account_id")
+  accountNumber        String               @unique @map("account_number")
+  title                String
+  principal            Float                @default(0.0)
+  currentBalance       Float                @default(0.0) @map("current_balance")
+  targetAmount         Float?               @map("target_amount")
+  interestAccrued      Float                @default(0.0) @map("interest_accrued")
+  interestRate         Float                @default(0.125) @map("interest_rate")
+  startDate            DateTime             @default(now()) @map("start_date")
+  maturityDate         DateTime?            @map("maturity_date")
+  status               SavingsAccountStatus @default(ACTIVE)
+  autoSaveAmount       Float                @default(0.0) @map("auto_save_amount")
+  autoSaveFrequency    AutoSaveFrequency    @default(NONE) @map("auto_save_frequency")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+  primaryBankAccount   BankAccount          @relation(fields: [primaryBankAccountId], references: [id], onDelete: Cascade)
+  savingsProduct       SavingsProduct       @relation(fields: [productId], references: [id])
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("savings_accounts")
+}
+
+model InvestmentProduct {
+  id                   String              @id @default(cuid())
+  symbol               String              @unique
+  name                 String
+  category             InvestmentCategory  @default(MUTUAL_FUND)
+  unitPriceNav         Float               @map("unit_price_nav")
+  currency             String              @default("NGN")
+  expectedRateAnnual   Float               @default(0.12) @map("expected_rate_annual")
+  managementFeePercent Float               @default(0.01) @map("management_fee_percent")
+  minPurchaseUnits     Float               @default(1.0) @map("min_purchase_units")
+  lockPeriodDays       Int                 @default(0) @map("lock_period_days")
+  isMaturitySupported  Boolean             @default(false) @map("is_maturity_supported")
+  description          String?
+  createdAt            DateTime            @default(now()) @map("created_at")
+  durationText         String?             @map("duration_text")
+  entryFee             Float               @default(0.0) @map("entry_fee")
+  liquidity            String              @default("DAILY")
+  maxInvestmentAmount  Float?              @map("max_investment_amount")
+  minInvestmentAmount  Float               @default(1000.0) @map("min_investment_amount")
+  returnModel          String              @default("VARIABLE_NAV") @map("return_model")
+  riskLevel            String              @default("MODERATE") @map("risk_level")
+  status               String              @default("ACTIVE")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  holdings             InvestmentHolding[]
+  legacyInvestments    UserInvestment[]
+
+  @@map("investment_products")
+}
+
+model InvestmentHolding {
+  id                   String                  @id @default(cuid())
+  userId               String                  @map("user_id")
+  productId            String                  @map("product_id")
+  primaryBankAccountId String                  @map("primary_bank_account_id")
+  accountNumber        String                  @unique @map("account_number")
+  principalInvested    Float                   @default(0.0) @map("principal_invested")
+  unitsOwned           Float                   @default(0.0) @map("units_owned")
+  costBasisUnitPrice   Float                   @map("cost_basis_unit_price")
+  currentUnitPrice     Float                   @map("current_unit_price")
+  currentValue         Float                   @default(0.0) @map("current_value")
+  totalReturns         Float                   @default(0.0) @map("total_returns")
+  accumulatedFees      Float                   @default(0.0) @map("accumulated_fees")
+  purchaseDate         DateTime                @default(now()) @map("purchase_date")
+  maturityDate         DateTime?               @map("maturity_date")
+  status               InvestmentHoldingStatus @default(ACTIVE)
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+  primaryBankAccount   BankAccount             @relation(fields: [primaryBankAccountId], references: [id], onDelete: Cascade)
+  product              InvestmentProduct       @relation(fields: [productId], references: [id])
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("investment_holdings")
+}
+
+model InvestmentAsset {
+  id              String           @id @default(cuid())
+  symbol          String           @unique
+  name            String
+  assetType       String           @default("US_EQUITY") @map("asset_type")
+  currentPrice    Float            @map("current_price")
+  currency        String           @default("USD")
+  change24h       Float            @default(0.0) @map("change_24h")
+  riskLevel       String           @default("MODERATE") @map("risk_level")
+  description     String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  userInvestments UserInvestment[]
+
+  @@map("investment_assets")
+}
+
+model UserInvestment {
+  id            String             @id @default(cuid())
+  userId        String             @map("user_id")
+  assetId       String             @map("asset_id")
+  unitsOwned    Float              @default(0.0) @map("units_owned")
+  totalInvested Float              @default(0.0) @map("total_invested")
+  currentValue  Float              @default(0.0) @map("current_value")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  productId     String?            @map("product_id")
+  asset         InvestmentAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  product       InvestmentProduct? @relation(fields: [productId], references: [id])
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assetId])
+  @@map("user_investments")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Budget {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  name      String
+  category  String
+  amount    Float
+  spent     Float        @default(0.0)
+  currency  String       @default("NGN")
+  period    String       @default("MONTHLY")
+  startDate DateTime     @default(now()) @map("start_date")
+  endDate   DateTime?    @map("end_date")
+  status    BudgetStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("budgets")
 }
 
 enum Role {
@@ -26,9 +353,9 @@ enum SavingsAccountStatus {
   ACTIVE
   LOCKED
   MATURED
+  CLOSED
   WITHDRAWN
   ROLLED_OVER
-  CLOSED
   CANCELLED
 }
 
@@ -53,357 +380,9 @@ enum InvestmentHoldingStatus {
   SUSPENDED
 }
 
-model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  passwordHash String?   @map("password_hash")
-  role         Role      @default(USER)
-  isVerified   Boolean   @default(true) @map("is_verified")
-  phone        String?
-  avatarUrl    String?   @map("avatar_url")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  accounts           Account[]
-  sessions           Session[]
-  resetTokens        PasswordResetToken[]
-  bankAccounts       BankAccount[]
-  cards              Card[]
-  savingsGoals       SavingsGoal[]
-  savingsAccounts    SavingsAccount[]
-  userInvestments    UserInvestment[]
-  investmentHoldings InvestmentHolding[]
-  notifications      Notification[]
-  budgets            Budget[]
-
-  @@map("users")
-}
-
-model Account {
-  id                String   @id @default(cuid())
-  userId            String   @map("user_id")
-  provider          String
-  providerAccountId String   @map("provider_account_id")
-  accessToken       String?  @map("access_token")
-  refreshToken      String?  @map("refresh_token")
-  expiresAt         Int?     @map("expires_at")
-  idToken           String?  @map("id_token")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  token     String   @unique
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("password_reset_tokens")
-}
-
-model BankAccount {
-  id             String   @id @default(cuid())
-  userId         String   @map("user_id")
-  accountNumber  String   @unique @map("account_number")
-  accountName    String   @map("account_name")
-  bankName       String   @default("BankSpace Microfinance Bank") @map("bank_name")
-  accountType    String   @default("CHECKING") @map("account_type")
-  balance        Float    @default(0.0)
-  pendingBalance Float    @default(0.0) @map("pending_balance")
-  currency       String   @default("NGN")
-  status         String   @default("ACTIVE")
-  dailyLimit     Float    @default(1000000.0) @map("daily_limit")
-  isPrimary      Boolean  @default(true) @map("is_primary")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactionsSent     Transaction[]       @relation("SenderAccount")
-  transactionsReceived Transaction[]       @relation("RecipientAccount")
-  ledgerEntries        LedgerEntry[]
-  savingsAccounts      SavingsAccount[]
-  investmentHoldings   InvestmentHolding[]
-
-  @@map("bank_accounts")
-}
-
-model Transaction {
-  id                 String   @id @default(cuid())
-  reference          String   @unique
-  providerRef        String?  @map("provider_ref")
-  senderAccountId    String?  @map("sender_account_id")
-  recipientAccountId String?  @map("recipient_account_id")
-  senderName         String   @map("sender_name")
-  recipientName      String   @map("recipient_name")
-  bankName           String   @map("bank_name")
-  accountNumber      String   @map("account_number")
-  amount             Float
-  fee                Float    @default(0.0)
-  currency           String   @default("NGN")
-  type               String   @default("TRANSFER")
-  category           String   @default("Transfer")
-  status             String   @default("SUCCESSFUL")
-  description        String?
-  note               String?
-  metadata           String?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  senderAccount    BankAccount?  @relation("SenderAccount", fields: [senderAccountId], references: [id], onDelete: SetNull)
-  recipientAccount BankAccount?  @relation("RecipientAccount", fields: [recipientAccountId], references: [id], onDelete: SetNull)
-  ledgerEntries    LedgerEntry[]
-
-  @@map("transactions")
-}
-
-model LedgerEntry {
-  id            String      @id @default(cuid())
-  transactionId String      @map("transaction_id")
-  bankAccountId String      @map("bank_account_id")
-  entryType     String      @map("entry_type")
-  amount        Float
-  balanceAfter  Float       @map("balance_after")
-  createdAt     DateTime    @default(now()) @map("created_at")
-
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-
-  @@map("ledger_entries")
-}
-
-model Card {
-  id             String   @id @default(cuid())
-  userId         String   @map("user_id")
-  cardHolderName String   @map("card_holder_name")
-  maskedPan      String   @map("masked_pan")
-  cardType       String   @default("VISA") @map("card_type")
-  cardCategory   String   @default("VIRTUAL") @map("card_category")
-  expiryDate     String   @map("expiry_date")
-  status         String   @default("ACTIVE")
-  spendingLimit  Float    @default(500000.0) @map("spending_limit")
-  colorScheme    String   @default("PURPLE") @map("color_scheme")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("cards")
-}
-
-model SavingsGoal {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  title         String
-  targetAmount  Float    @map("target_amount")
-  currentAmount Float    @default(0.0) @map("current_amount")
-  targetDate    String?  @map("target_date")
-  category      String   @default("GENERAL")
-  gradient      String   @default("from-[#080617] via-[#692fff] to-[#ff7ad9]")
-  status        String   @default("ACTIVE")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("savings_goals")
-}
-
-model SavingsProduct {
-  id                     String             @id @default(cuid())
-  name                   String
-  productType            SavingsProductType @default(FLEXIBLE) @map("product_type")
-  interestRateAnnual     Float              @default(0.125) @map("interest_rate_annual")
-  minDepositAmount       Float              @default(1000.0) @map("min_deposit_amount")
-  lockPeriodDays         Int                @default(0) @map("lock_period_days")
-  earlyPenaltyPercent    Float              @default(0.0) @map("early_penalty_percent")
-  allowPartialWithdrawal Boolean            @default(true) @map("allow_partial_withdrawal")
-  createdAt              DateTime           @default(now()) @map("created_at")
-
-  savingsAccounts SavingsAccount[]
-
-  @@map("savings_products")
-}
-
-model SavingsAccount {
-  id                   String               @id @default(cuid())
-  userId               String               @map("user_id")
-  productId            String               @map("product_id")
-  primaryBankAccountId String               @map("primary_bank_account_id")
-  accountNumber        String               @unique @map("account_number")
-  title                String
-  principal            Float                @default(0.0)
-  currentBalance       Float                @default(0.0) @map("current_balance")
-  targetAmount         Float?               @map("target_amount")
-  interestAccrued      Float                @default(0.0) @map("interest_accrued")
-  interestRate         Float                @default(0.125) @map("interest_rate")
-  startDate            DateTime             @default(now()) @map("start_date")
-  maturityDate         DateTime?            @map("maturity_date")
-  status               SavingsAccountStatus @default(ACTIVE)
-  autoSaveAmount       Float                @default(0.0) @map("auto_save_amount")
-  autoSaveFrequency    AutoSaveFrequency    @default(NONE) @map("auto_save_frequency")
-  createdAt            DateTime             @default(now()) @map("created_at")
-  updatedAt            DateTime             @updatedAt @map("updated_at")
-
-  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  savingsProduct     SavingsProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  primaryBankAccount BankAccount    @relation(fields: [primaryBankAccountId], references: [id], onDelete: Cascade)
-
-  @@map("savings_accounts")
-}
-
-model InvestmentProduct {
-  id                   String             @id @default(cuid())
-  symbol               String             @unique
-  name                 String
-  description          String?
-  category             InvestmentCategory @default(MUTUAL_FUND)
-  unitPriceNav         Float              @map("unit_price_nav")
-  currency             String             @default("NGN")
-  minInvestmentAmount  Float              @default(1000.0) @map("min_investment_amount")
-  maxInvestmentAmount  Float?             @map("max_investment_amount")
-  minPurchaseUnits     Float              @default(1.0) @map("min_purchase_units")
-  riskLevel            String             @default("MODERATE") @map("risk_level")
-  returnModel          String             @default("VARIABLE_NAV") @map("return_model")
-  expectedRateAnnual   Float              @default(0.12) @map("expected_rate_annual")
-  managementFeePercent Float              @default(0.01) @map("management_fee_percent")
-  entryFee             Float              @default(0.0) @map("entry_fee")
-  lockPeriodDays       Int                @default(0) @map("lock_period_days")
-  durationText         String?            @map("duration_text")
-  liquidity            String             @default("DAILY")
-  isMaturitySupported Boolean            @default(false) @map("is_maturity_supported")
-  status               String             @default("ACTIVE")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
-
-  holdings           InvestmentHolding[]
-  legacyInvestments UserInvestment[]
-
-  @@map("investment_products")
-}
-
-model InvestmentHolding {
-  id                   String                  @id @default(cuid())
-  userId               String                  @map("user_id")
-  productId            String                  @map("product_id")
-  primaryBankAccountId String                  @map("primary_bank_account_id")
-  accountNumber        String                  @unique @map("account_number")
-  principalInvested    Float                   @default(0.0) @map("principal_invested")
-  unitsOwned           Float                   @default(0.0) @map("units_owned")
-  costBasisUnitPrice   Float                   @map("cost_basis_unit_price")
-  currentUnitPrice     Float                   @map("current_unit_price")
-  currentValue         Float                   @default(0.0) @map("current_value")
-  totalReturns         Float                   @default(0.0) @map("total_returns")
-  accumulatedFees      Float                   @default(0.0) @map("accumulated_fees")
-  purchaseDate         DateTime                @default(now()) @map("purchase_date")
-  maturityDate         DateTime?               @map("maturity_date")
-  status               InvestmentHoldingStatus @default(ACTIVE)
-  createdAt            DateTime                @default(now()) @map("created_at")
-  updatedAt            DateTime                @updatedAt @map("updated_at")
-
-  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product            InvestmentProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  primaryBankAccount BankAccount       @relation(fields: [primaryBankAccountId], references: [id], onDelete: Cascade)
-
-  @@map("investment_holdings")
-}
-
-model InvestmentAsset {
-  id           String   @id @default(cuid())
-  symbol       String   @unique
-  name         String
-  assetType    String   @default("US_EQUITY") @map("asset_type")
-  currentPrice Float    @map("current_price")
-  currency     String   @default("USD")
-  change24h    Float    @default(0.0) @map("change_24h")
-  riskLevel    String   @default("MODERATE") @map("risk_level")
-  description  String?
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  userInvestments UserInvestment[]
-
-  @@map("investment_assets")
-}
-
-model UserInvestment {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  assetId       String   @map("asset_id")
-  unitsOwned    Float    @default(0.0) @map("units_owned")
-  totalInvested Float    @default(0.0) @map("total_invested")
-  currentValue  Float    @default(0.0) @map("current_value")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  asset   InvestmentAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  product InvestmentProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
-
-  productId String? @map("product_id")
-
-  @@unique([userId, assetId])
-  @@map("user_investments")
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  title     String
-  message   String
-  type      String   @default("INFO")
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("notifications")
-}
-
 enum BudgetStatus {
   ACTIVE
   EXCEEDED
   CANCELLED
   EXPIRED
-}
-
-model Budget {
-  id        String       @id @default(cuid())
-  userId    String       @map("user_id")
-  name      String
-  category  String
-  amount    Float
-  spent     Float        @default(0.0)
-  currency  String       @default("NGN")
-  period    String       @default("MONTHLY")
-  startDate DateTime     @default(now()) @map("start_date")
-  endDate   DateTime?    @map("end_date")
-  status    BudgetStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("budgets")
 }

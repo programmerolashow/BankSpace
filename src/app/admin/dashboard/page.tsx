@@ -113,6 +113,71 @@ function AdminDashboardContent() {
   const [reconcileReport, setReconcileReport] = useState<ReconcileReport | null>(null)
   const [isReconciling, setIsReconciling] = useState(false)
 
+  // Server-Side User Pagination & Filter State
+  const [userPage, setUserPage] = useState(1)
+  const [userLimit, setUserLimit] = useState(10)
+  const [userStatusFilter, setUserStatusFilter] = useState("ALL")
+  const [userSortBy, setUserSortBy] = useState("createdAt")
+  const [userSortOrder, setUserSortOrder] = useState<"asc" | "desc">("desc")
+  const [pagination, setPagination] = useState<{
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+    hasNextPage: boolean
+    hasPrevPage: boolean
+  }>({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  })
+
+  // Deep User Inspection Modal State
+  const [selectedUserDetail, setSelectedUserDetail] = useState<any>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+
+  const fetchUsersPaginated = async (
+    p = userPage,
+    l = userLimit,
+    s = userStatusFilter,
+    q = searchQuery,
+    sort = userSortBy,
+    order = userSortOrder
+  ) => {
+    setIsLoading(true)
+    try {
+      const url = `/api/admin/users?page=${p}&limit=${l}&status=${s}&search=${encodeURIComponent(q)}&sortBy=${sort}&sortOrder=${order}`
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.users) setUsers(data.users)
+        if (data.pagination) setPagination(data.pagination)
+      }
+    } catch {
+      // Error
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleInspectUserDetail = async (userId: string) => {
+    setIsDetailLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSelectedUserDetail(data)
+      }
+    } catch {
+      // Error
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
   const fetchAdminData = async () => {
     setIsLoading(true)
     try {
@@ -289,107 +354,291 @@ function AdminDashboardContent() {
         </div>
       </div>
 
-      {/* TAB CONTENT: DASHBOARD & OVERVIEW */}
+      {/* TAB CONTENT: DASHBOARD & OVERVIEW / USER MANAGEMENT */}
       {(activeTab === "dashboard" || activeTab === "users" || activeTab === "kyc" || activeTab === "suspended") && (
         <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Users className="h-5 w-5 text-amber-400" />
-              {activeTab === "suspended" ? "Suspended / Frozen User Accounts" : activeTab === "kyc" ? "User Verification & KYC Registry" : "BankSpace Account Registry"}
-            </h2>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Users className="h-5 w-5 text-amber-400" />
+                  {activeTab === "suspended" ? "Suspended / Frozen User Accounts" : activeTab === "kyc" ? "User Verification & KYC Registry" : "BankSpace Paginated User Registry"}
+                </h2>
+                <p className="text-xs text-slate-400">Server-side database paginated user management console</p>
+              </div>
 
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search user name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-2xl border border-slate-800 bg-slate-950 pl-10 pr-4 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-amber-500/60"
-              />
+              {/* Search & Sort Controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search name, email, NUBAN..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value)
+                      fetchUsersPaginated(1, userLimit, userStatusFilter, e.target.value, userSortBy, userSortOrder)
+                    }}
+                    className="w-full rounded-2xl border border-slate-800 bg-slate-950 pl-10 pr-4 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-amber-500/60"
+                  />
+                </div>
+
+                <select
+                  value={`${userSortBy}:${userSortOrder}`}
+                  onChange={(e) => {
+                    const [sort, order] = e.target.value.split(":")
+                    setUserSortBy(sort)
+                    setUserSortOrder(order as any)
+                    fetchUsersPaginated(1, userLimit, userStatusFilter, searchQuery, sort, order as any)
+                  }}
+                  className="rounded-2xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 outline-none"
+                >
+                  <option value="createdAt:desc">Newest Registered</option>
+                  <option value="createdAt:asc">Oldest Registered</option>
+                  <option value="name:asc">Name (A-Z)</option>
+                  <option value="name:desc">Name (Z-A)</option>
+                  <option value="email:asc">Email (A-Z)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* FILTER PILLS BAR */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-4">
+              {[
+                { id: "ALL", label: "All Users" },
+                { id: "ACTIVE", label: "Active" },
+                { id: "SUSPENDED", label: "Suspended / Frozen" },
+                { id: "VERIFIED", label: "Verified KYC" },
+                { id: "PENDING_VERIFICATION", label: "Pending Verification" },
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  onClick={() => {
+                    setUserStatusFilter(pill.id)
+                    setUserPage(1)
+                    fetchUsersPaginated(1, userLimit, pill.id, searchQuery, userSortBy, userSortOrder)
+                  }}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    userStatusFilter === pill.id
+                      ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
+                      : "bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800"
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
             </div>
           </div>
 
           {isLoading ? (
-            <div className="py-12 text-center text-slate-400 space-y-3">
+            <div className="py-16 text-center text-slate-400 space-y-3">
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-amber-400" />
-              <p className="text-xs font-semibold">Loading user database registry...</p>
+              <p className="text-xs font-semibold">Loading paginated user registry from database...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="pb-3">User Details</th>
-                    <th className="pb-3">Primary Account</th>
-                    <th className="pb-3">Balance</th>
-                    <th className="pb-3">Verification</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-semibold text-slate-300">
-                  {(activeTab === "suspended" ? suspendedUsers : activeTab === "kyc" ? verifiedUsers : filteredUsers).map((u) => {
-                    const primaryAcc = u.bankAccounts?.find((a) => a.isPrimary) || u.bankAccounts?.[0]
-                    const isFrozen = primaryAcc?.status === "FROZEN"
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="pb-3">User & Contact Details</th>
+                      <th className="pb-3">Registration Date</th>
+                      <th className="pb-3">Primary Account</th>
+                      <th className="pb-3">Balance</th>
+                      <th className="pb-3">KYC Status</th>
+                      <th className="pb-3">Account Status</th>
+                      <th className="pb-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-semibold text-slate-300">
+                    {users.map((u) => {
+                      const primaryAcc = u.bankAccounts?.find((a) => a.isPrimary) || u.bankAccounts?.[0]
+                      const isFrozen = primaryAcc?.status === "FROZEN"
 
-                    return (
-                      <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
-                        <td className="py-4">
-                          <p className="font-bold text-white">{u.name}</p>
-                          <p className="text-[11px] text-slate-400">{u.email}</p>
-                        </td>
-                        <td className="py-4 font-mono text-slate-300">
-                          {primaryAcc ? `${primaryAcc.accountNumber} (${primaryAcc.bankName})` : "No account"}
-                        </td>
-                        <td className="py-4 font-black text-amber-400">
-                          ₦{Number(primaryAcc?.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-4">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                              u.isVerified
-                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                            }`}
-                          >
-                            {u.isVerified ? "VERIFIED" : "UNVERIFIED"}
-                          </span>
-                        </td>
-                        <td className="py-4">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                              isFrozen
-                                ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                                : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                            }`}
-                          >
-                            {isFrozen ? "FROZEN" : "ACTIVE"}
-                          </span>
-                        </td>
-                        <td className="py-4 text-right">
-                          {primaryAcc && u.role !== "ADMIN" && (
-                            <button
-                              onClick={() => handleToggleFreezeAccount(u, primaryAcc.id, primaryAcc.status)}
-                              disabled={actionLoading}
-                              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                                isFrozen
-                                  ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30"
-                                  : "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30"
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-4">
+                            <p className="font-bold text-white">{u.name}</p>
+                            <p className="text-[11px] text-slate-400">{u.email}</p>
+                            {u.phone && <p className="text-[10px] text-slate-500">{u.phone}</p>}
+                          </td>
+                          <td className="py-4 text-slate-400">
+                            {new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </td>
+                          <td className="py-4 font-mono text-slate-300">
+                            {primaryAcc ? `${primaryAcc.accountNumber} (${primaryAcc.bankName})` : "No account"}
+                          </td>
+                          <td className="py-4 font-black text-amber-400">
+                            ₦{Number(primaryAcc?.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-4">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                u.isVerified
+                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                  : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                               }`}
                             >
-                              {isFrozen ? "Unfreeze Account" : "Freeze Account"}
+                              {u.isVerified ? "VERIFIED" : "UNVERIFIED"}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                isFrozen
+                                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              }`}
+                            >
+                              {isFrozen ? "FROZEN" : "ACTIVE"}
+                            </span>
+                          </td>
+                          <td className="py-4 text-right space-x-2">
+                            <button
+                              onClick={() => handleInspectUserDetail(u.id)}
+                              className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer border border-slate-700"
+                            >
+                              View Details
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                            {primaryAcc && u.role !== "ADMIN" && (
+                              <button
+                                onClick={() => handleToggleFreezeAccount(u, primaryAcc.id, primaryAcc.status)}
+                                disabled={actionLoading}
+                                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                  isFrozen
+                                    ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30"
+                                    : "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30"
+                                }`}
+                              >
+                                {isFrozen ? "Unfreeze" : "Freeze"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* SERVER-SIDE PAGINATION FOOTER */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-800 pt-4 text-xs font-semibold text-slate-400">
+                <span>
+                  Showing Page <strong className="text-white">{pagination.page}</strong> of <strong className="text-white">{pagination.totalPages}</strong> (Total <strong className="text-amber-400">{pagination.total}</strong> registered users)
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const newP = Math.max(userPage - 1, 1)
+                      setUserPage(newP)
+                      fetchUsersPaginated(newP, userLimit, userStatusFilter, searchQuery, userSortBy, userSortOrder)
+                    }}
+                    disabled={!pagination.hasPrevPage}
+                    className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                  >
+                    Previous
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const newP = userPage + 1
+                      setUserPage(newP)
+                      fetchUsersPaginated(newP, userLimit, userStatusFilter, searchQuery, userSortBy, userSortOrder)
+                    }}
+                    disabled={!pagination.hasNextPage}
+                    className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800 disabled:opacity-40 cursor-pointer"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </section>
+      )}
+
+      {/* DEEP USER INSPECTION MODAL DRAWER */}
+      {selectedUserDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setSelectedUserDetail(null)} />
+          <div className="relative w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl z-50 max-h-[90vh] overflow-y-auto space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-500 text-slate-950 font-black text-lg">
+                  {selectedUserDetail.user.name[0].toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">{selectedUserDetail.user.name}</h3>
+                  <p className="text-xs text-slate-400">{selectedUserDetail.user.email} • ID: {selectedUserDetail.user.id}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedUserDetail(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white">
+                ✕
+              </button>
+            </div>
+
+            {/* User Overview Grid */}
+            <div className="grid gap-4 sm:grid-cols-3 font-semibold text-xs">
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Registration Date</span>
+                <p className="text-white font-bold">{new Date(selectedUserDetail.user.createdAt).toLocaleString()}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">KYC Status</span>
+                <p className={selectedUserDetail.user.isVerified ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                  {selectedUserDetail.user.isVerified ? "VERIFIED IDENTITY" : "UNVERIFIED / PENDING"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Account Role</span>
+                <p className="text-amber-400 font-bold">{selectedUserDetail.user.role}</p>
+              </div>
+            </div>
+
+            {/* Bank Accounts Section */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase text-slate-400">Associated Bank Accounts</h4>
+              <div className="space-y-2">
+                {selectedUserDetail.user.bankAccounts?.map((acc: any) => (
+                  <div key={acc.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-4 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-white">{acc.accountName} ({acc.bankName})</p>
+                      <p className="font-mono text-slate-400">NUBAN: {acc.accountNumber}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-amber-400 text-sm">₦{Number(acc.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+                      <span className={`text-[10px] font-bold ${acc.status === "FROZEN" ? "text-rose-400" : "text-emerald-400"}`}>{acc.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent Transaction Activity */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase text-slate-400">Recent Transaction Activity ({selectedUserDetail.transactions?.length || 0})</h4>
+              <div className="max-h-48 overflow-y-auto space-y-2 font-mono text-xs">
+                {selectedUserDetail.transactions?.length === 0 ? (
+                  <p className="text-slate-500 text-xs py-4 text-center">No transaction history recorded for this user.</p>
+                ) : (
+                  selectedUserDetail.transactions?.map((t: any) => (
+                    <div key={t.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-sans font-bold text-white">{t.reference} • {t.type}</p>
+                        <p className="text-[10px] text-slate-400">{t.senderName} ➔ {t.recipientName || t.accountNumber}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-amber-400">₦{Number(t.amount).toLocaleString()}</p>
+                        <span className="text-[10px] text-emerald-400 font-sans font-bold">{t.status}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* TAB CONTENT: FINANCIAL TRANSACTIONS, TRANSFERS, DEPOSITS, WITHDRAWALS, FAILED */}
