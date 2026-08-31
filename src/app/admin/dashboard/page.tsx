@@ -40,8 +40,11 @@ function AdminDashboardContent() {
     recentUsers: [],
   })
 
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
   const fetchStats = async (r = range) => {
     setIsLoading(true)
+    setFetchError(null)
     try {
       const res = await fetch(`/api/admin/stats?range=${r}`)
       if (res.status === 401 || res.status === 403) {
@@ -56,9 +59,12 @@ function AdminDashboardContent() {
       if (res.ok) {
         const data = await res.json()
         setStatsData(data)
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        setFetchError(errData.message || "Failed to load executive stats data.")
       }
     } catch {
-      // Error
+      setFetchError("Network error occurred while connecting to server.")
     } finally {
       setIsLoading(false)
     }
@@ -124,6 +130,19 @@ function AdminDashboardContent() {
           </button>
         </div>
       </div>
+
+      {/* INTENTIONAL ERROR STATE BANNER WITH RECOVERY RETRY */}
+      {fetchError && (
+        <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 p-6 text-center space-y-3">
+          <p className="text-sm font-bold text-rose-200">{fetchError}</p>
+          <button
+            onClick={() => fetchStats(range)}
+            className="rounded-2xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 transition-colors cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-rose-600/20"
+          >
+            <RefreshCw className="h-4 w-4" /> Retry Executive Stats Fetch
+          </button>
+        </div>
+      )}
 
       {/* EXECUTIVE FINANCIAL METRICS GRID */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
