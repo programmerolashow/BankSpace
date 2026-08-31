@@ -241,111 +241,110 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans antialiased flex flex-col">
       {/* TOP HEADER BAR */}
-      <header className="h-16 shrink-0 z-40 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {/* Mobile Drawer Trigger */}
-            <button
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="lg:hidden p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-              aria-label="Toggle Navigation Drawer"
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+      <header className="h-16 shrink-0 z-40 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 w-full">
+        {/* Left: Brand Logo & Mobile Trigger */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Mobile Drawer Trigger */}
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+            aria-label="Toggle Navigation Drawer"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
 
-            {/* Brand Logo & System Admin Badge */}
-            <div className="flex items-center gap-2.5">
-              <div className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-tr from-amber-500 to-indigo-600 text-slate-950 font-black shadow-md shadow-amber-500/20">
-                <ShieldCheck className="h-5 w-5 text-slate-950" />
-              </div>
-              <div className="hidden sm:block">
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-sm tracking-tight text-white">BankSpace</span>
-                  <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                    Admin System
-                  </span>
-                </div>
-                <p className="text-[11px] font-medium text-slate-400">Enterprise Control Console</p>
-              </div>
+          {/* Brand Logo & System Admin Badge */}
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-tr from-amber-500 to-indigo-600 text-slate-950 font-black shadow-md shadow-amber-500/20">
+              <ShieldCheck className="h-5 w-5 text-slate-950" />
             </div>
-          </div>
-
-          {/* Top Bar Center Search Button */}
-          <div className="hidden md:flex items-center gap-2 flex-1 max-w-md mx-4">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="w-full flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-2 text-xs font-semibold text-slate-400 hover:border-amber-500/50 hover:text-slate-200 transition-colors cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-slate-500" />
-                <span>Search accounts, transactions, logs, users...</span>
-              </span>
-              <kbd className="hidden sm:inline-block rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-400 border border-slate-700">
-                Ctrl K
-              </kbd>
-            </button>
-          </div>
-
-          {/* Header Right Actions */}
-          <div className="flex items-center gap-3">
-            {/* Live System Indicator */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-bold text-emerald-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Live Settlement Engine
-            </div>
-
-            {/* OPERATIONAL ALERT BELL BUTTON */}
-            <button
-              onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className="relative rounded-2xl border border-slate-800 bg-slate-900 p-2.5 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
-              aria-label="Operational Notifications"
-            >
-              <Bell className="h-4 w-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-[10px] font-black text-white ring-2 ring-slate-950 animate-pulse">
-                  {unreadCount > 9 ? "9+" : unreadCount}
+            <div className="hidden sm:block">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm tracking-tight text-white">BankSpace</span>
+                <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                  Admin System
                 </span>
-              )}
+              </div>
+              <p className="text-[11px] font-medium text-slate-400">Enterprise Control Console</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Search Bar */}
+        <div className="hidden md:flex items-center gap-2 flex-1 max-w-lg mx-6">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-2 text-xs font-semibold text-slate-400 hover:border-amber-500/50 hover:text-slate-200 transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-slate-500" />
+              <span>Search accounts, transactions, logs, users...</span>
+            </span>
+            <kbd className="hidden sm:inline-block rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-400 border border-slate-700">
+              Ctrl K
+            </kbd>
+          </button>
+        </div>
+
+        {/* Right: Actions & Admin Profile */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Live System Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-bold text-emerald-400">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Live Settlement Engine
+          </div>
+
+          {/* OPERATIONAL ALERT BELL BUTTON */}
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className="relative rounded-2xl border border-slate-800 bg-slate-900 p-2.5 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
+            aria-label="Operational Notifications"
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-[10px] font-black text-white ring-2 ring-slate-950 animate-pulse">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Admin Profile Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
+              className="flex items-center gap-2.5 rounded-2xl border border-slate-800 bg-slate-900 p-1.5 pr-3 hover:bg-slate-800/80 transition-colors cursor-pointer"
+            >
+              <div className="grid h-7 w-7 place-items-center rounded-xl bg-amber-500 text-slate-950 font-black text-xs">
+                {adminUser.name ? adminUser.name[0].toUpperCase() : "A"}
+              </div>
+              <div className="hidden sm:block text-left">
+                <p className="text-xs font-bold text-slate-200 line-clamp-1">{adminUser.name}</p>
+                <p className="text-[10px] font-medium text-amber-400">System Admin</p>
+              </div>
             </button>
 
-            {/* Admin Profile Dropdown */}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
-                className="flex items-center gap-2.5 rounded-2xl border border-slate-800 bg-slate-900 p-1.5 pr-3 hover:bg-slate-800/80 transition-colors cursor-pointer"
-              >
-                <div className="grid h-7 w-7 place-items-center rounded-xl bg-amber-500 text-slate-950 font-black text-xs">
-                  {adminUser.name ? adminUser.name[0].toUpperCase() : "A"}
+            {adminDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-800 bg-slate-900 p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="px-3 py-2 border-b border-slate-800">
+                  <p className="text-xs font-bold text-white">{adminUser.name}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{adminUser.email}</p>
                 </div>
-                <div className="hidden sm:block text-left">
-                  <p className="text-xs font-bold text-slate-200 line-clamp-1">{adminUser.name}</p>
-                  <p className="text-[10px] font-medium text-amber-400">System Admin</p>
-                </div>
-              </button>
-
-              {adminDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-800 bg-slate-900 p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-3 py-2 border-b border-slate-800">
-                    <p className="text-xs font-bold text-white">{adminUser.name}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{adminUser.email}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setAdminDropdownOpen(false)
-                      navigateToTab("settings")
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <Settings className="h-4 w-4 text-amber-400" /> Admin Settings
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4 text-rose-400" /> Logout Session
-                  </button>
-                </div>
-              )}
-            </div>
+                <button
+                  onClick={() => {
+                    setAdminDropdownOpen(false)
+                    navigateToTab("settings")
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Settings className="h-4 w-4 text-amber-400" /> Admin Settings
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4 text-rose-400" /> Logout Session
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
