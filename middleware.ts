@@ -20,8 +20,11 @@ export function middleware(request: NextRequest) {
   const authToken = request.cookies.get("auth")?.value
   const isAuthenticated = Boolean(authToken && authToken !== "")
 
-  // Dedicated Admin Guard
-  if (pathname.startsWith("/admin/dashboard") && !isAuthenticated) {
+  // Dedicated Admin Guard for all /admin/* routes except login & register
+  const isAdminRoute = pathname.startsWith("/admin")
+  const isAdminPublic = pathname === "/admin/login" || pathname === "/admin/register"
+
+  if (isAdminRoute && !isAdminPublic && !isAuthenticated) {
     const adminLoginUrl = new URL("/admin/login", request.url)
     return NextResponse.redirect(adminLoginUrl)
   }
@@ -52,6 +55,6 @@ export const config = {
     "/budgets/:path*",
     "/savings/:path*",
     "/profile/:path*",
-    "/admin/dashboard/:path*",
+    "/admin/:path*",
   ],
 }

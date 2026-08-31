@@ -96,7 +96,16 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const currentTab = searchParams.get("tab") || "dashboard"
+  const currentTab = (() => {
+    if (pathname === "/admin/kyc") return "kyc"
+    if (pathname === "/admin/activity") return "activity"
+    if (pathname === "/admin/settings") return "settings"
+    if (pathname === "/admin/paystack") return "paystack"
+    if (pathname === "/admin/transactions") return "transactions"
+    if (pathname === "/admin/transfers") return "transfers"
+    if (pathname.startsWith("/admin/users")) return "users"
+    return searchParams.get("tab") || "dashboard"
+  })()
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
