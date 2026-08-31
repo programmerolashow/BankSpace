@@ -30,6 +30,8 @@ import {
   CheckCheck,
 } from "lucide-react"
 
+import { AdminErrorBoundary } from "@/components/admin/AdminErrorBoundary"
+
 type NavSection = {
   title: string
   items: Array<{
@@ -448,7 +450,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
         )}
 
         {/* MAIN CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 sm:p-6 lg:p-8">
+          <AdminErrorBoundary>
+            {children}
+          </AdminErrorBoundary>
+        </main>
       </div>
 
       {/* OPERATIONAL ALERT DRAWER SLIDE-OVER MODAL */}
