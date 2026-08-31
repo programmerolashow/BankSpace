@@ -28,14 +28,16 @@ export type OAuthProfilePayload = {
 }
 
 export function getAppOrigin(request: Request): string {
-  const envUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL
+  const envUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL
   if (envUrl && !envUrl.includes("0.0.0.0")) {
-    return envUrl.replace(/\/$/, "")
+    const formatted = envUrl.replace(/\/$/, "")
+    return formatted.startsWith("http") ? formatted : `https://${formatted}`
   }
 
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || ""
   if (host && !host.includes("0.0.0.0")) {
-    const proto = request.headers.get("x-forwarded-proto") || "http"
+    const isLocal = host.includes("localhost") || host.includes("127.0.0.1")
+    const proto = request.headers.get("x-forwarded-proto") || (isLocal ? "http" : "https")
     return `${proto}://${host}`
   }
 

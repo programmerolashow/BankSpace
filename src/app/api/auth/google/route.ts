@@ -5,7 +5,10 @@ import { getAppOrigin, redirectApp } from "@/lib/auth"
 export async function GET(request: Request) {
   const origin = getAppOrigin(request)
   const clientId = process.env.GOOGLE_CLIENT_ID
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${origin}/api/auth/callback/google`
+  const redirectUri =
+    process.env.GOOGLE_REDIRECT_URI && !process.env.GOOGLE_REDIRECT_URI.includes("localhost")
+      ? process.env.GOOGLE_REDIRECT_URI
+      : `${origin}/api/auth/callback/google`
 
   // Fallback to simulation endpoint if client ID is missing in dev environment
   if (!clientId || clientId.includes("your-google-client-id")) {

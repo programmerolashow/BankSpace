@@ -29,7 +29,10 @@ export async function GET(request: Request) {
   const origin = getAppOrigin(request)
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${origin}/api/auth/callback/google`
+  const redirectUri =
+    process.env.GOOGLE_REDIRECT_URI && !process.env.GOOGLE_REDIRECT_URI.includes("localhost")
+      ? process.env.GOOGLE_REDIRECT_URI
+      : `${origin}/api/auth/callback/google`
 
   try {
     // 3. Exchange authorization code for Google access & ID tokens
