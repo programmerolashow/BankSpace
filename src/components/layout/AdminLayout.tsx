@@ -235,9 +235,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased flex flex-col">
+    <div className="h-screen max-h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans antialiased flex flex-col">
       {/* TOP HEADER BAR */}
-      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 py-3">
+      <header className="h-16 shrink-0 z-40 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {/* Mobile Drawer Trigger */}
@@ -347,15 +347,15 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
       </header>
 
       {/* MAIN CONTAINER: SIDEBAR + CONTENT */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-[calc(100vh-4rem)] relative">
         {/* DESKTOP SIDEBAR */}
         <aside
-          className={`hidden lg:flex flex-col border-r border-slate-800/80 bg-slate-900/60 transition-all duration-300 ${
-            isCollapsed ? "w-20" : "w-72"
+          className={`hidden lg:flex flex-col border-r border-slate-800/80 bg-slate-900/60 shrink-0 h-full overflow-hidden transition-all duration-300 ${
+            isCollapsed ? "w-20" : "w-64"
           }`}
         >
           {/* Collapse Toggle Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-800/60">
+          <div className="flex items-center justify-between p-3.5 border-b border-slate-800/60 shrink-0">
             {!isCollapsed && (
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
                 Navigation Console
@@ -371,11 +371,11 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
           </div>
 
           {/* Navigation Links */}
-          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-none">
             {adminNavSections.map((section, idx) => (
               <div key={idx} className="space-y-1">
                 {!isCollapsed && (
-                  <p className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                  <p className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
                     {section.title}
                   </p>
                 )}
@@ -388,7 +388,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
                       key={item.tabKey}
                       onClick={() => navigateToTab(item.tabKey)}
                       title={isCollapsed ? item.label : undefined}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
                         isActive
                           ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black"
                           : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-200"
@@ -450,7 +450,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
         )}
 
         {/* MAIN CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 sm:p-6 lg:p-8 h-full">
           <AdminErrorBoundary>
             {children}
           </AdminErrorBoundary>
