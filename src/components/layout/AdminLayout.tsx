@@ -96,16 +96,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const currentTab = (() => {
-    if (pathname === "/admin/kyc") return "kyc"
-    if (pathname === "/admin/activity") return "activity"
-    if (pathname === "/admin/settings") return "settings"
-    if (pathname === "/admin/paystack") return "paystack"
-    if (pathname === "/admin/transactions") return "transactions"
-    if (pathname === "/admin/transfers") return "transfers"
-    if (pathname.startsWith("/admin/users")) return "users"
-    return searchParams.get("tab") || "dashboard"
-  })()
+  const currentTab = searchParams.get("tab") || "dashboard"
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -230,16 +221,20 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
     setMobileOpen(false)
     if (tabKey === "kyc") {
       router.push("/admin/kyc")
-    } else if (tabKey === "logs" || tabKey === "activity") {
+    } else if (tabKey === "logs" || tabKey === "activity" || tabKey === "security") {
       router.push("/admin/activity")
-    } else if (tabKey === "settings" || tabKey === "profile") {
+    } else if (tabKey === "settings" || tabKey === "system_settings" || tabKey === "profile") {
       router.push("/admin/settings")
     } else if (tabKey === "paystack" || tabKey === "monitoring") {
       router.push("/admin/paystack")
-    } else if (tabKey === "transactions" || tabKey === "transfers") {
+    } else if (tabKey === "transfers") {
+      router.push("/admin/transfers")
+    } else if (tabKey === "transactions" || tabKey === "failed" || tabKey === "deposits" || tabKey === "withdrawals") {
       router.push("/admin/transactions")
+    } else if (tabKey === "users" || tabKey === "suspended") {
+      router.push("/admin/dashboard?tab=" + tabKey)
     } else {
-      router.push(`/admin/dashboard?tab=${tabKey}`)
+      router.push("/admin/dashboard")
     }
   }
 
