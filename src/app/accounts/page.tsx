@@ -2,22 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import {
-  Wallet,
-  Plus,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Copy,
-  Check,
-  ShieldCheck,
-  Lock,
-  TrendingUp,
-  CreditCard,
-  ChevronRight,
-  Building2,
-  Sparkles,
-  ArrowLeftRight,
-} from "lucide-react"
+import BankSpaceAccountNumberCard from "@/components/dashboard/BankSpaceAccountNumberCard"
 
 const defaultAcc = {
   id: "primary_zero",
@@ -254,6 +239,12 @@ export default function AccountsPage() {
 
         {/* Selected Account Detail Sidebar */}
         <section className="space-y-6">
+          <BankSpaceAccountNumberCard
+            accountNumber={selectedAccount?.number || accounts[0]?.number || "8012345678"}
+            bankName={selectedAccount?.bank || "BankSpace Microfinance Bank"}
+            accountName={selectedAccount?.name}
+          />
+
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
             <h2 className="font-bold text-slate-900 text-lg flex items-center justify-between">
               <span>Account Performance</span>

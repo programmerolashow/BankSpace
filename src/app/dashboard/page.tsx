@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Loader2 } from "lucide-react"
+import BankSpaceAccountNumberCard from "@/components/dashboard/BankSpaceAccountNumberCard"
 
 const quickActions = [
   { label: "Send Money", color: "bg-violet-100 text-violet-600", icon: "➤", href: "/transfer" },
@@ -137,7 +137,14 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <div className="mt-10 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+      {/* BANKSPACE ACCOUNT IDENTIFIER & QUICK ACTIONS */}
+      <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <BankSpaceAccountNumberCard
+          accountNumber={account?.accountNumber || "8012345678"}
+          bankName={account?.bankName || "BankSpace Microfinance Bank"}
+          accountName={account?.accountName}
+        />
+
         <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <h2 className="mb-5 font-bold">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -159,7 +166,9 @@ export default function DashboardPage() {
             ))}
           </div>
         </section>
+      </div>
 
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
         <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="font-bold">Spending Overview</h2>
@@ -192,9 +201,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
-      </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
         <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-bold">Recent Transactions</h2>
@@ -205,7 +212,6 @@ export default function DashboardPage() {
 
           {isLoading ? (
             <div className="py-8 text-center space-y-2">
-              <Loader2 className="h-5 w-5 animate-spin text-[#3f3cff] mx-auto" />
               <p className="text-xs text-slate-400">Fetching live transactions...</p>
             </div>
           ) : transactions.length === 0 ? (
@@ -231,29 +237,6 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </section>
-
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="font-bold">Savings Goals</h2>
-            <Link className="text-xs font-semibold text-[#3f3cff]" href="/savings">
-              View All
-            </Link>
-          </div>
-
-          <div className="py-8 text-center space-y-2">
-            <p className="text-sm font-medium text-slate-500">No savings yet.</p>
-            <Link href="/savings" className="inline-block text-xs font-bold text-[#3f3cff]">
-              + Create Savings Goal
-            </Link>
-          </div>
-
-          <div className="mt-7 rounded-2xl bg-linear-to-r from-[#efeaff] to-[#fff0fb] p-4">
-            <p className="font-semibold">You’re doing great!</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Keep saving to achieve your goals faster.
-            </p>
-          </div>
         </section>
       </div>
     </div>

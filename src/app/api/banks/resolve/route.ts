@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { defaultBankingProvider } from "@/lib/bankingProvider"
 import { getPrismaClient } from "@/lib/prisma"
 import { apiBadRequest, apiInternalError } from "@/lib/errors"
+import { normalizePhoneNumberToAccountNumber } from "@/lib/phoneNormalization"
 
 export async function POST(request: Request) {
   try {
@@ -21,11 +22,12 @@ export async function POST(request: Request) {
     // 1. Handle Internal BankSpace Multi-Identifier Lookups
     if (sanitizedBankCode === "000000") {
       let internalAcc = null
+      const normalizedAccountNum = normalizePhoneNumberToAccountNumber(queryTarget)
 
-      // A. Lookup by 10-Digit Account Number
-      if (/^\d{10}$/.test(queryTarget)) {
+      // A. Lookup by 10-Digit Account Number or Normalized Phone
+      if (normalizedAccountNum && normalizedAccountNum.length === 10) {
         internalAcc = await client.bankAccount.findFirst({
-          where: { accountNumber: queryTarget },
+          where: { accountNumber: normalizedAccountNum },
           include: { user: true },
         })
       }
