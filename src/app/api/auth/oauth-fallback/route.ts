@@ -7,10 +7,11 @@ export async function GET(request: Request) {
   const origin = getAppOrigin(request)
 
   try {
-    const { token } = await loginWithOAuth(provider)
+    const { token, user } = await loginWithOAuth(provider)
 
-    const dashboardUrl = new URL("/dashboard", origin).toString()
-    const response = NextResponse.redirect(dashboardUrl)
+    const targetPath = user?.isProfileComplete ? "/dashboard" : "/complete-profile"
+    const redirectTargetUrl = new URL(targetPath, origin).toString()
+    const response = NextResponse.redirect(redirectTargetUrl)
 
     response.cookies.set("auth", token, {
       httpOnly: true,

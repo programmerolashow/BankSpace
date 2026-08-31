@@ -18,6 +18,25 @@ model User {
   kycRejectionReason String?              @map("kyc_rejection_reason")
   kycSubmittedAt     DateTime?            @map("kyc_submitted_at")
   phone              String?
+  firstName          String?              @map("first_name")
+  middleName         String?              @map("middle_name")
+  lastName           String?              @map("last_name")
+  dob                String?              @map("dob")
+  gender             String?              @map("gender")
+  bvn                String?              @map("bvn")
+  bvnStatus          String               @default("UNVERIFIED") @map("bvn_status")
+  bvnProvider        String?              @map("bvn_provider")
+  bvnReferenceId     String?              @map("bvn_reference_id")
+  bvnVerifiedAt      DateTime?            @map("bvn_verified_at")
+  maskedBvn          String?              @map("masked_bvn")
+  bvnFailureReason   String?              @map("bvn_failure_reason")
+  nin                String?              @map("nin")
+  address            String?              @map("address")
+  state              String?              @map("state")
+  lga                String?              @map("lga")
+  country            String?              @default("Nigeria") @map("country")
+  postalCode         String?              @map("postal_code")
+  phoneVerified      Boolean              @default(false) @map("phone_verified")
   avatarUrl          String?              @map("avatar_url")
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
@@ -27,6 +46,7 @@ model User {
   cards              Card[]
   investmentHoldings InvestmentHolding[]
   notifications      Notification[]
+  phoneOtps          PhoneOtp[]
   resetTokens        PasswordResetToken[]
   savingsAccounts    SavingsAccount[]
   savingsGoals       SavingsGoal[]
@@ -410,4 +430,23 @@ model AuditLog {
   @@index([adminId])
   @@index([targetEntity, targetId])
   @@map("audit_logs")
+}
+
+model PhoneOtp {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  phone          String   @map("phone")
+  otpHash        String   @map("otp_hash")
+  attempts       Int      @default(0)
+  maxAttempts    Int      @default(3) @map("max_attempts")
+  expiresAt      DateTime @map("expires_at")
+  resendCooldown DateTime @map("resend_cooldown")
+  isVerified     Boolean  @default(false) @map("is_verified")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, phone])
+  @@index([phone])
+  @@map("phone_otps")
 }

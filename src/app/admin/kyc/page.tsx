@@ -130,6 +130,33 @@ export default function AdminKYCPage() {
       accessor: (user) => user.primaryAccount?.accountNumber || user.bankAccounts?.[0]?.accountNumber || "N/A",
     },
     {
+      key: "bvnStatus",
+      header: "BVN Verification",
+      accessor: (user) => {
+        const bvnSt = user.bvnStatus || "UNVERIFIED"
+        const masked = user.maskedBvn || (user.bvn ? `${user.bvn.slice(0, 3)}*****${user.bvn.slice(-3)}` : "N/A")
+        const isVerified = bvnSt === "VERIFIED"
+        const isFailed = bvnSt === "FAILED"
+
+        return (
+          <div className="space-y-1">
+            <span className="font-mono text-xs text-amber-300 font-bold block">{masked}</span>
+            <span
+              className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-extrabold ${
+                isVerified
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : isFailed
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                  : "bg-slate-800 text-slate-400"
+              }`}
+            >
+              {bvnSt}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
       key: "kycStatus",
       header: "KYC Status",
       accessor: (user) => {

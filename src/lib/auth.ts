@@ -13,6 +13,9 @@ export type AuthUser = {
   phone?: string | null
   avatarUrl?: string | null
   role?: string
+  kycStatus?: string
+  isVerified?: boolean
+  isProfileComplete?: boolean
 }
 
 export type OAuthProfilePayload = {
@@ -254,6 +257,12 @@ export async function verifySessionToken(token: string) {
       return { valid: false, error: "User not found" }
     }
 
+    const isProfileComplete = Boolean(
+      user.phone &&
+      (user.bvn || user.nin) &&
+      user.kycStatus === "VERIFIED"
+    )
+
     return {
       valid: true,
       user: {
@@ -263,6 +272,9 @@ export async function verifySessionToken(token: string) {
         phone: user.phone,
         avatarUrl: user.avatarUrl,
         role: user.role,
+        kycStatus: user.kycStatus || "UNVERIFIED",
+        isVerified: Boolean(user.isVerified),
+        isProfileComplete,
       },
     }
   } catch (err) {
@@ -396,14 +408,24 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
     console.warn("[Session Recording Notice]:", e)
   }
 
+  const isProfileComplete = Boolean(
+    targetUser.phone &&
+    (targetUser.bvn || targetUser.nin) &&
+    targetUser.kycStatus === "VERIFIED"
+  )
+
   return {
     token,
     user: {
       id: userId,
       name: targetUser.name,
       email: targetUser.email,
+      phone: targetUser.phone,
       avatarUrl: targetUser.avatarUrl,
       role: targetUser.role,
+      kycStatus: targetUser.kycStatus || "UNVERIFIED",
+      isVerified: Boolean(targetUser.isVerified),
+      isProfileComplete,
     },
   }
 }

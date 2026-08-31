@@ -69,7 +69,7 @@ export async function GET(request: Request) {
     const displayName = profile.name || profile.given_name || "Google User"
 
     // 5. Look up or create application User and Account in PostgreSQL
-    const { token } = await findOrCreateOAuthAccount({
+    const { token, user } = await findOrCreateOAuthAccount({
       provider: "google",
       providerAccountId: profile.sub,
       email: profile.email,
@@ -81,9 +81,10 @@ export async function GET(request: Request) {
       idToken: tokenData.id_token,
     })
 
-    // 6. Create authenticated session cookie and redirect directly to /dashboard on valid origin
-    const dashboardUrl = new URL("/dashboard", origin).toString()
-    const response = NextResponse.redirect(dashboardUrl)
+    // 6. Create authenticated session cookie and redirect to /complete-profile if KYC incomplete, else /dashboard
+    const targetPath = user?.isProfileComplete ? "/dashboard" : "/complete-profile"
+    const redirectTargetUrl = new URL(targetPath, origin).toString()
+    const response = NextResponse.redirect(redirectTargetUrl)
 
     response.cookies.set("auth", token, {
       httpOnly: true,

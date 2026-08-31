@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import BankSpaceAccountNumberCard from "@/components/dashboard/BankSpaceAccountNumberCard"
 
@@ -30,6 +31,7 @@ type TxData = {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [userName, setUserName] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -58,9 +60,15 @@ export default function DashboardPage() {
       fetch("/api/transactions?limit=4").then((res) => (res.ok ? res.json() : null)),
     ])
       .then(([userData, accData, txData]) => {
-        if (userData?.user?.name) {
-          const firstName = userData.user.name.trim().split(/\s+/)[0] || "User"
-          setUserName(firstName)
+        if (userData?.user) {
+          if (userData.user.role === "USER" && (userData.user.isProfileComplete === false || !userData.user.phone)) {
+            router.push("/complete-profile")
+            return
+          }
+          if (userData.user.name) {
+            const firstName = userData.user.name.trim().split(/\s+/)[0] || "User"
+            setUserName(firstName)
+          }
         }
         if (accData?.accounts?.[0]) {
           setAccount(accData.accounts[0])

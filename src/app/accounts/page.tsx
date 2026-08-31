@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import BankSpaceAccountNumberCard from "@/components/dashboard/BankSpaceAccountNumberCard"
+import { Wallet, Plus, ArrowUpRight, ArrowDownLeft, Copy, Check, ShieldCheck, TrendingUp, ArrowLeftRight } from "lucide-react"
 
 const defaultAcc = {
   id: "primary_zero",
