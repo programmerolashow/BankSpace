@@ -137,8 +137,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
 
   const navigateToTab = (tabKey: string) => {
     setMobileOpen(false)
-    if (pathname === "/admin/dashboard") {
-      router.push(`/admin/dashboard?tab=${tabKey}`)
+    if (tabKey === "kyc") {
+      router.push("/admin/kyc")
     } else {
       router.push(`/admin/dashboard?tab=${tabKey}`)
     }

@@ -14,6 +14,9 @@ model User {
   passwordHash       String?              @map("password_hash")
   role               Role                 @default(USER)
   isVerified         Boolean              @default(true) @map("is_verified")
+  kycStatus          String               @default("VERIFIED") @map("kyc_status")
+  kycRejectionReason String?              @map("kyc_rejection_reason")
+  kycSubmittedAt     DateTime?            @map("kyc_submitted_at")
   phone              String?
   avatarUrl          String?              @map("avatar_url")
   createdAt          DateTime             @default(now()) @map("created_at")
