@@ -1,31 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { verifySessionToken } from "@/lib/auth"
+import { requireAdminSession } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { calculateHoldingValuation } from "@/lib/investmentValuation"
-import { logAuditEvent } from "@/lib/audit"
+import { getClientIp } from "@/lib/rateLimit"
 import { apiUnauthorized, apiForbidden, apiBadRequest, apiInternalError } from "@/lib/errors"
 
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies()
-    const authToken = cookieStore.get("auth")?.value
+    const authToken = cookieStore.get("auth")?.value || ""
 
-    if (!authToken) {
-      return apiUnauthorized()
+    const authCheck = await requireAdminSession(authToken)
+    if (!authCheck.valid || !authCheck.user) {
+      if (authCheck.status === 401) {
+        return apiUnauthorized(authCheck.error || "Authentication required. Please log in.")
+      }
+      return apiForbidden(authCheck.error || "Administrator privileges required.")
     }
 
-    const { valid, user, error } = await verifySessionToken(authToken)
-    if (!valid || !user) {
-      return apiUnauthorized(error || "Authentication required. Please log in.")
-    }
-
-    if (user.role !== "ADMIN") {
-      return apiForbidden("Access denied. Administrator privileges required.")
-    }
-
-    const body = await request.json()
+    const body = await request.json().catch(() => ({}))
     const { productId, newUnitPriceNav } = body
 
     const price = Number(newUnitPriceNav)
@@ -59,23 +54,42 @@ export async function POST(request: Request) {
               totalReturns: val.profitLoss,
             },
           })
-
-          updatedHoldingsCount++
         }
+
+        updatedHoldingsCount = activeHoldings.length
       })
     }
 
-    await logAuditEvent(
-      user.id,
-      "TRANSACTION_SUCCESS",
-      `Revalued investment product ${productId} to NAV ₦${price}. Updated ${updatedHoldingsCount} holdings.`
-    )
+    // Write Audit Log
+    const ipAddress = getClientIp(request)
+    const userAgent = request.headers.get("user-agent") || undefined
+
+    if (client.auditLog && typeof client.auditLog.create === "function") {
+      try {
+        await client.auditLog.create({
+          data: {
+            adminId: authCheck.user.id,
+            adminEmail: authCheck.user.email,
+            adminName: authCheck.user.name,
+            action: "INVESTMENT_REVALUE",
+            targetEntity: "InvestmentProduct",
+            targetId: productId,
+            ipAddress,
+            userAgent,
+            metadata: JSON.stringify({ productId, newUnitPriceNav: price, updatedHoldingsCount }),
+          },
+        })
+      } catch (err) {
+        console.warn("[Admin Revalue Audit Log Notice]:", err)
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully revalued product NAV to ₦${price}.`,
+      message: `Investment product unit NAV updated to ₦${price}. ${updatedHoldingsCount} active holdings revalued.`,
+      productId,
       newUnitPriceNav: price,
-      updatedHoldingsCount,
+      revaluedHoldingsCount: updatedHoldingsCount,
     })
   } catch (err) {
     return apiInternalError(err)

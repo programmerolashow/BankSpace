@@ -170,9 +170,9 @@ export function AdminDataTable<T>({
         </div>
       ) : (
         /* DATA TABLE SHEET */
-        <div className="space-y-4">
-          <div className="overflow-x-auto rounded-2xl border border-slate-800/80 bg-slate-950">
-            <table className="w-full text-left text-xs border-collapse">
+        <div className="space-y-4 max-w-full overflow-hidden">
+          <div className="w-full max-w-full overflow-x-auto rounded-2xl border border-slate-800/80 bg-slate-950 shadow-inner">
+            <table className="w-full min-w-[640px] text-left text-xs border-collapse">
               <thead className="border-b border-slate-800 bg-slate-900/90 text-slate-400 font-bold uppercase tracking-wider">
                 <tr>
                   {columns.map((col) => {
