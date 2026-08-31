@@ -139,6 +139,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
     setMobileOpen(false)
     if (tabKey === "kyc") {
       router.push("/admin/kyc")
+    } else if (tabKey === "logs" || tabKey === "activity") {
+      router.push("/admin/activity")
     } else if (tabKey === "paystack" || tabKey === "monitoring") {
       router.push("/admin/paystack")
     } else if (tabKey === "transactions" || tabKey === "transfers") {

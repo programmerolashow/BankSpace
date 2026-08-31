@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { loginUser } from "@/lib/auth"
+import { getPrismaClient } from "@/lib/prisma"
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit"
 import { apiBadRequest, apiForbidden } from "@/lib/errors"
 
@@ -26,6 +27,28 @@ export async function POST(request: Request) {
 
     if (user.role !== "ADMIN") {
       return apiForbidden("Access denied. Administrator privileges required.")
+    }
+
+    // RECORD AUDIT LOG ENTRY FOR ADMIN LOGIN
+    try {
+      const { client } = getPrismaClient()
+      if (client.auditLog && typeof client.auditLog.create === "function") {
+        await client.auditLog.create({
+          data: {
+            adminId: user.id,
+            adminEmail: user.email,
+            adminName: user.name,
+            action: "ADMIN_LOGIN",
+            targetEntity: "AdminSession",
+            targetId: user.id,
+            ipAddress: ip,
+            userAgent: userAgent || null,
+            metadata: JSON.stringify({ message: "Administrator session authenticated successfully." }),
+          },
+        })
+      }
+    } catch (auditErr) {
+      console.warn("[Audit Log Notice]: Failed to record admin login audit log:", auditErr)
     }
 
     const response = NextResponse.json({ user, token }, { status: 200 })

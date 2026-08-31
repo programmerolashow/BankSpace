@@ -3,7 +3,6 @@
 
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
-import AdminLayout from "@/components/layout/AdminLayout"
 import {
   ArrowLeft,
   User,
@@ -95,29 +94,25 @@ export default function AdminUserProfilePage({ params }: { params: Promise<{ id:
 
   if (isLoading) {
     return (
-      <AdminLayout title="User Profile">
-        <div className="py-24 text-center text-slate-400 space-y-4">
-          <Loader2 className="h-10 w-10 animate-spin mx-auto text-amber-400" />
-          <p className="text-sm font-semibold">Loading detailed user profile & activity records...</p>
-        </div>
-      </AdminLayout>
+      <div className="py-24 text-center text-slate-400 space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin mx-auto text-amber-400" />
+        <p className="text-sm font-semibold">Loading detailed user profile & activity records...</p>
+      </div>
     )
   }
 
   if (!userData?.user) {
     return (
-      <AdminLayout title="User Profile Not Found">
-        <div className="py-24 text-center text-slate-400 space-y-4">
-          <UserX className="h-12 w-12 mx-auto text-rose-400" />
-          <h2 className="text-xl font-bold text-white">User Record Not Found</h2>
-          <button
-            onClick={() => router.push("/admin/dashboard?tab=users")}
-            className="rounded-2xl bg-slate-800 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700"
-          >
-            Return to User Registry
-          </button>
-        </div>
-      </AdminLayout>
+      <div className="py-24 text-center text-slate-400 space-y-4">
+        <UserX className="h-12 w-12 mx-auto text-rose-400" />
+        <h2 className="text-xl font-bold text-white">User Record Not Found</h2>
+        <button
+          onClick={() => router.push("/admin/dashboard?tab=users")}
+          className="rounded-2xl bg-slate-800 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700"
+        >
+          Return to User Registry
+        </button>
+      </div>
     )
   }
 
@@ -126,17 +121,38 @@ export default function AdminUserProfilePage({ params }: { params: Promise<{ id:
   const isFrozen = primaryAcc?.status === "FROZEN"
 
   return (
-    <AdminLayout title={`User Profile: ${user.name}`}>
-      <div className="space-y-8 pb-12">
-        {/* TOP NAVIGATION BREADCRUMB */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => router.push("/admin/dashboard?tab=users")}
-            className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4 text-amber-400" /> Back to User Registry
-          </button>
-          <span className="text-xs font-mono text-slate-500">ID: {user.id}</span>
+    <div className="space-y-8 pb-12">
+        {/* TOP NAVIGATION BREADCRUMB & FUNCTIONALITY HEADER */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => router.push("/admin/dashboard?tab=users")}
+              className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4 text-amber-400" /> Back to User Registry
+            </button>
+            <span className="text-xs font-mono text-slate-500">ID: {user.id}</span>
+          </div>
+
+          <div className="border-b border-slate-800 pb-4">
+            <h1 className="text-xl font-black text-white flex items-center gap-2">
+              <User className="h-6 w-6 text-amber-400" /> User Identity & Administrative Security Controls
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Functionality: Inspect customer NUBAN accounts, identity compliance, activity logs, and execute confirmation-guarded administrative actions.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-bold">
+              <span className="rounded-full bg-amber-500/10 text-amber-400 px-3 py-1 border border-amber-500/20">
+                • NUBAN Accounts & Financial Balances
+              </span>
+              <span className="rounded-full bg-cyan-500/10 text-cyan-400 px-3 py-1 border border-cyan-500/20">
+                • KYC Compliance History
+              </span>
+              <span className="rounded-full bg-rose-500/10 text-rose-400 px-3 py-1 border border-rose-500/20">
+                • Confirmation-Guarded Administrative Suspend/Activate
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* PROFILE HEADER CARD */}
@@ -418,6 +434,5 @@ export default function AdminUserProfilePage({ params }: { params: Promise<{ id:
           </div>
         )}
       </div>
-    </AdminLayout>
   )
 }

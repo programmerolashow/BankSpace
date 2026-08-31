@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requireAdminSession } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { getClientIp } from "@/lib/rateLimit"
 import { apiUnauthorized, apiForbidden, apiBadRequest, apiInternalError } from "@/lib/errors"
 
 export async function GET(request: Request) {
@@ -29,23 +30,20 @@ export async function GET(request: Request) {
 
     const where: any = {}
 
-    // Search filter (Name, Email, Phone, NUBAN)
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
-        { phone: { contains: search, mode: "insensitive" } },
-        { bankAccounts: { some: { accountNumber: { contains: search, mode: "insensitive" } } } },
+        {
+          bankAccounts: {
+            some: { accountNumber: { contains: search, mode: "insensitive" } },
+          },
+        },
       ]
     }
 
-    // KYC Status Filter
-    if (status === "PENDING") {
-      where.kycStatus = "PENDING"
-    } else if (status === "VERIFIED") {
-      where.OR = [{ kycStatus: "VERIFIED" }, { isVerified: true }]
-    } else if (status === "REJECTED") {
-      where.kycStatus = "REJECTED"
+    if (status && status !== "ALL") {
+      where.kycStatus = status
     }
 
     let submissions: any[] = []
@@ -63,7 +61,6 @@ export async function GET(request: Request) {
               id: true,
               name: true,
               email: true,
-              phone: true,
               role: true,
               isVerified: true,
               kycStatus: true,
@@ -153,6 +150,7 @@ export async function POST(request: Request) {
     }
 
     const { client } = getPrismaClient()
+    const auditAction = action === "APPROVE" ? "KYC_APPROVE" : "KYC_REJECT"
 
     if (action === "APPROVE") {
       await client.user.update({
@@ -176,15 +174,27 @@ export async function POST(request: Request) {
       return apiBadRequest("Invalid KYC action. Supported actions: APPROVE, REJECT.")
     }
 
-    // Write Audit Log
+    // Write Formal Audit Log Entry
+    const ipAddress = getClientIp(request)
+    const userAgent = request.headers.get("user-agent") || undefined
+
     if (client.auditLog && typeof client.auditLog.create === "function") {
       try {
         await client.auditLog.create({
           data: {
-            userId: authCheck.user?.id || userId,
-            action: `KYC_${action}`,
-            resource: `USER_${userId}`,
-            details: `KYC verification ${action} decision for user ${userId}. Reason: ${reason || "Approved by administrator"}`,
+            adminId: authCheck.user?.id,
+            adminEmail: authCheck.user?.email,
+            adminName: authCheck.user?.name,
+            action: auditAction,
+            targetEntity: "KycSubmission",
+            targetId: userId,
+            ipAddress,
+            userAgent,
+            metadata: JSON.stringify({
+              action,
+              reason: reason || "Compliance verification approved",
+              timestamp: new Date().toISOString(),
+            }),
           },
         })
       } catch (err) {

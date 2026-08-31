@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requireAdminSession } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
-import { apiUnauthorized, apiForbidden, apiNotFound, apiBadRequest, apiInternalError } from "@/lib/errors"
+import { getClientIp } from "@/lib/rateLimit"
+import { apiUnauthorized, apiForbidden, apiBadRequest, apiNotFound, apiInternalError } from "@/lib/errors"
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -19,67 +20,58 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }
 
     const { id: userId } = await context.params
-    if (!userId) {
-      return apiNotFound("User ID is required.")
-    }
-
     const { client } = getPrismaClient()
 
-    let user: any = null
+    const user = await client.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: { select: false },
+        name: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        isSuspended: true,
+        kycStatus: true,
+        kycRejectionReason: true,
+        kycSubmittedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        bankAccounts: {
+          select: {
+            id: true,
+            accountNumber: true,
+            accountName: true,
+            bankName: true,
+            balance: true,
+            currency: true,
+            status: true,
+            isPrimary: true,
+            createdAt: true,
+          },
+        },
+      },
+    })
+
+    if (!user) {
+      return apiNotFound("User record not found.")
+    }
+
+    const primaryAcc = user.bankAccounts?.find((a: any) => a.isPrimary) || user.bankAccounts?.[0]
     let transactions: any[] = []
     let transfers: any[] = []
     let logs: any[] = []
     let transactionCount = 0
     let transferCount = 0
 
-    if (client.user && typeof client.user.findUnique === "function") {
-      try {
-        user = await client.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            isVerified: true,
-            phone: true,
-            avatarUrl: true,
-            createdAt: true,
-            updatedAt: true,
-            bankAccounts: {
-              select: {
-                id: true,
-                accountNumber: true,
-                accountName: true,
-                bankName: true,
-                balance: true,
-                status: true,
-                isPrimary: true,
-                createdAt: true,
-              },
-            },
-          },
-        })
-      } catch (err) {
-        console.warn("[Admin User Detail DB Notice]:", err)
-      }
-    }
-
-    if (!user) {
-      return apiNotFound("User not found.")
-    }
-
-    const primaryAcc = user.bankAccounts?.find((a: any) => a.isPrimary) || user.bankAccounts?.[0]
-
-    // Fetch user recent transactions, transfers, counts & logs
-    if (primaryAcc && client.transaction && typeof client.transaction.findMany === "function") {
+    if (primaryAcc) {
       try {
         const [txList, trList, txCount, trCount, auditLogs] = await Promise.all([
           client.transaction.findMany({
             where: {
               OR: [
                 { accountNumber: primaryAcc.accountNumber },
-                { bankAccountId: primaryAcc.id },
+                { senderAccountId: primaryAcc.id },
+                { recipientAccountId: primaryAcc.id },
               ],
             },
             orderBy: { createdAt: "desc" },
@@ -90,7 +82,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
               type: "TRANSFER",
               OR: [
                 { accountNumber: primaryAcc.accountNumber },
-                { bankAccountId: primaryAcc.id },
+                { senderAccountId: primaryAcc.id },
+                { recipientAccountId: primaryAcc.id },
               ],
             },
             orderBy: { createdAt: "desc" },
@@ -100,7 +93,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
             where: {
               OR: [
                 { accountNumber: primaryAcc.accountNumber },
-                { bankAccountId: primaryAcc.id },
+                { senderAccountId: primaryAcc.id },
+                { recipientAccountId: primaryAcc.id },
               ],
             },
           }),
@@ -109,13 +103,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
               type: "TRANSFER",
               OR: [
                 { accountNumber: primaryAcc.accountNumber },
-                { bankAccountId: primaryAcc.id },
+                { senderAccountId: primaryAcc.id },
+                { recipientAccountId: primaryAcc.id },
               ],
             },
           }),
           client.auditLog
             ? client.auditLog.findMany({
-                where: { userId: user.id },
+                where: { targetId: userId },
                 orderBy: { createdAt: "desc" },
                 take: 20,
               })
@@ -134,7 +129,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     return NextResponse.json({
       success: true,
-      user,
+      user: { id: userId, ...user },
       transactions,
       transfers,
       logs,
@@ -170,36 +165,63 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     const { client } = getPrismaClient()
+    let auditAction = `USER_${action}`
 
     if (action === "SUSPEND" || action === "ACTIVATE") {
-      const newStatus = action === "SUSPEND" ? "FROZEN" : "ACTIVE"
+      const isSuspended = action === "SUSPEND"
+      const newStatus = action === "SUSPEND" ? "FROZEN" : "ACTIVE font"
+      auditAction = isSuspended ? "USER_SUSPEND" : "USER_RESTORE"
+
+      if (client.user && typeof client.user.update === "function") {
+        await client.user.update({
+          where: { id: userId },
+          data: { isSuspended },
+        })
+      }
       if (client.bankAccount && typeof client.bankAccount.updateMany === "function") {
         await client.bankAccount.updateMany({
           where: { userId },
-          data: { status: newStatus },
+          data: { status: isSuspended ? "FROZEN" : "ACTIVE" },
         })
       }
     } else if (action === "VERIFY" || action === "UNVERIFY") {
       const isVerified = action === "VERIFY"
+      auditAction = isVerified ? "KYC_APPROVE" : "KYC_REJECT"
+
       if (client.user && typeof client.user.update === "function") {
         await client.user.update({
           where: { id: userId },
-          data: { isVerified },
+          data: {
+            isVerified,
+            kycStatus: isVerified ? "VERIFIED font" : "REJECTED",
+          },
         })
       }
     } else {
       return apiBadRequest("Unsupported administrative action.")
     }
 
-    // Write Audit Log
+    // Write Formal Audit Log Entry
+    const ipAddress = getClientIp(request)
+    const userAgent = request.headers.get("user-agent") || undefined
+
     if (client.auditLog && typeof client.auditLog.create === "function") {
       try {
         await client.auditLog.create({
           data: {
-            userId: authCheck.user?.id || userId,
-            action: `ADMIN_ACTION_${action}`,
-            resource: `USER_${userId}`,
-            details: reason || `Administrative action ${action} executed for user ${userId}`,
+            adminId: authCheck.user?.id,
+            adminEmail: authCheck.user?.email,
+            adminName: authCheck.user?.name,
+            action: auditAction,
+            targetEntity: "User",
+            targetId: userId,
+            ipAddress,
+            userAgent,
+            metadata: JSON.stringify({
+              actionRequested: action,
+              reason: reason || "No explicit reason provided",
+              timestamp: new Date().toISOString(),
+            }),
           },
         })
       } catch (err) {
