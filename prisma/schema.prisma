@@ -127,6 +127,9 @@ model Transaction {
   recipientAccount   BankAccount?  @relation("RecipientAccount", fields: [recipientAccountId], references: [id])
   senderAccount      BankAccount?  @relation("SenderAccount", fields: [senderAccountId], references: [id])
 
+  @@index([status, createdAt])
+  @@index([type, status])
+  @@index([providerRef])
   @@map("transactions")
 }
 
@@ -403,5 +406,8 @@ model AuditLog {
   metadata     String?  // JSON metadata string with extra request context
   createdAt    DateTime @default(now()) @map("created_at")
 
+  @@index([action, createdAt])
+  @@index([adminId])
+  @@index([targetEntity, targetId])
   @@map("audit_logs")
 }
