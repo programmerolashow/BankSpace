@@ -157,6 +157,67 @@ export default function AdminKYCPage() {
       },
     },
     {
+      key: "ninStatus",
+      header: "NIN Verification",
+      accessor: (user) => {
+        const ninSt = user.ninStatus || "UNVERIFIED"
+        const masked = user.maskedNin || (user.nin ? `${user.nin.slice(0, 3)}*****${user.nin.slice(-3)}` : "N/A")
+        const isVerified = ninSt === "VERIFIED"
+        const isFailed = ninSt === "FAILED"
+
+        return (
+          <div className="space-y-1">
+            <span className="font-mono text-xs text-indigo-300 font-bold block">{masked}</span>
+            <span
+              className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-extrabold ${
+                isVerified
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : isFailed
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                  : "bg-slate-800 text-slate-400"
+              }`}
+            >
+              {ninSt}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
+      key: "identityConsistencyStatus",
+      header: "Identity Consistency",
+      accessor: (user) => {
+        const st = user.identityConsistencyStatus || "UNVERIFIED"
+        const score = user.identityConsistencyScore || 0
+
+        const isMatch = st === "MATCH"
+        const isPartial = st === "PARTIAL_MATCH"
+        const isReview = st === "REQUIRES_REVIEW"
+        const isMismatch = st === "MISMATCH"
+
+        return (
+          <div className="space-y-1">
+            <span className="font-mono text-xs font-black text-white">{score}% Match</span>
+            <span
+              className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-extrabold ${
+                isMatch
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : isPartial
+                  ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                  : isReview
+                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  : isMismatch
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                  : "bg-slate-800 text-slate-400"
+              }`}
+            >
+              {st}
+            </span>
+          </div>
+        )
+      },
+    },
+    {
       key: "kycStatus",
       header: "KYC Status",
       accessor: (user) => {

@@ -5,6 +5,8 @@ import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { normalizePhoneNumberToAccountNumber } from "@/lib/phoneNormalization"
 import { verifyBvnWithProvider } from "@/lib/bvnVerificationService"
+import { verifyNinWithProvider } from "@/lib/ninVerificationService"
+import { evaluateIdentityConsistency } from "@/lib/identityConsistencyEngine"
 
 export async function POST(request: Request) {
   try {
@@ -89,15 +91,67 @@ export async function POST(request: Request) {
       )
     }
 
-    // 3. Normalize Phone & Derive 10-Digit BankSpace Account Number
+    // 3. Perform Provider-Backed NIN Verification & Identity Matching
+    const ninResult = await verifyNinWithProvider({
+      userId: user.id,
+      nin: cleanNin,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      dob: dob.trim(),
+      phone: phone.trim(),
+    })
+
+    if (ninResult.status === "FAILED") {
+      return NextResponse.json(
+        {
+          message: ninResult.failureReason || "NIN Identity Verification failed. First name, Last name, or Date of birth does not match NIMC NIN registry record.",
+          ninStatus: "FAILED",
+        },
+        { status: 400 }
+      )
+    }
+
+    // 4. Cross-Evaluate Identity Consistency Across Google OAuth, Profile, BVN, NIN & Phone Verification
+    const consistencyResult = evaluateIdentityConsistency({
+      googleName: user.name,
+      profileFirstName: firstName.trim(),
+      profileLastName: lastName.trim(),
+      profileDob: dob.trim(),
+      bvnFirstName: firstName.trim(),
+      bvnLastName: lastName.trim(),
+      bvnDob: dob.trim(),
+      ninFirstName: firstName.trim(),
+      ninLastName: lastName.trim(),
+      ninDob: dob.trim(),
+      phoneVerified: Boolean(phone && phone.trim()),
+    })
+
+    if (consistencyResult.status === "MISMATCH") {
+      return NextResponse.json(
+        {
+          message: consistencyResult.summary,
+          identityConsistencyStatus: "MISMATCH",
+          identityConsistencyScore: consistencyResult.score,
+          flags: consistencyResult.flags,
+        },
+        { status: 400 }
+      )
+    }
+
+    // 5. Normalize Phone & Derive 10-Digit BankSpace Account Number
     const normalizedAccountNumber = normalizePhoneNumberToAccountNumber(phone, user.id)
     const fullName = `${firstName.trim()} ${lastName.trim()}`
 
     const { client } = getPrismaClient()
 
-    // 4. Update User Profile in Database with BVN Verification Metadata
+    // 6. Update User Profile in Database with BVN, NIN & Identity Consistency Metadata
     let updatedUser: any = null
-    const finalKycStatus = bvnResult.status === "VERIFIED" ? "VERIFIED" : "PENDING"
+    const finalKycStatus =
+      bvnResult.status === "VERIFIED" &&
+      ninResult.status === "VERIFIED" &&
+      (consistencyResult.status === "MATCH" || consistencyResult.status === "PARTIAL_MATCH")
+        ? "VERIFIED"
+        : "PENDING"
 
     if (client.user && typeof client.user.update === "function") {
       try {
@@ -118,7 +172,16 @@ export async function POST(request: Request) {
             maskedBvn: bvnResult.maskedBvn,
             bvnFailureReason: bvnResult.failureReason || null,
             bvn: null, // Never store full 11-digit BVN in cleartext
-            nin: cleanNin,
+            ninStatus: ninResult.status,
+            ninProvider: ninResult.provider,
+            ninReferenceId: ninResult.referenceId,
+            ninVerifiedAt: ninResult.verifiedAt || null,
+            maskedNin: ninResult.maskedNin,
+            ninFailureReason: ninResult.failureReason || null,
+            nin: null, // Never store full 11-digit NIN in cleartext
+            identityConsistencyStatus: consistencyResult.status,
+            identityConsistencyScore: consistencyResult.score,
+            identityFlags: JSON.stringify(consistencyResult.flags),
             address: address.trim(),
             state: state.trim(),
             lga: lga.trim(),
