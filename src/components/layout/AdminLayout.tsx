@@ -139,6 +139,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode; title?: str
     setMobileOpen(false)
     if (tabKey === "kyc") {
       router.push("/admin/kyc")
+    } else if (tabKey === "transactions" || tabKey === "transfers") {
+      router.push("/admin/transactions")
     } else {
       router.push(`/admin/dashboard?tab=${tabKey}`)
     }
