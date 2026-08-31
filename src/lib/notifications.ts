@@ -27,3 +27,33 @@ export async function createNotification(
     console.warn("[Create Notification Notice]:", err)
   }
 }
+
+export async function notifyAdmins(
+  title: string,
+  message: string,
+  type: "INFO" | "SUCCESS" | "WARNING" | "SECURITY" = "WARNING",
+  prismaInstance?: any
+) {
+  const prisma = prismaInstance || getPrismaClient().client
+
+  if (!prisma.user || !prisma.notification) {
+    return
+  }
+
+  try {
+    const adminUsers = await prisma.user.findMany({
+      where: { role: "ADMIN" },
+      select: { id: true },
+    })
+
+    if (adminUsers.length === 0) return
+
+    await Promise.all(
+      adminUsers.map((admin: any) =>
+        createNotification(admin.id, title, message, type, prisma)
+      )
+    )
+  } catch (err) {
+    console.warn("[Notify Admins Notice]:", err)
+  }
+}
