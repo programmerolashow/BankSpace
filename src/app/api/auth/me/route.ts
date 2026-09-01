@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { verifySessionToken } from "@/lib/auth"
+import { deriveUserKycState } from "@/lib/kycStateEngine"
 
 export async function GET() {
   try {
@@ -20,7 +21,17 @@ export async function GET() {
       )
     }
 
-    return NextResponse.json({ user: result.user })
+    const kycEvaluation = deriveUserKycState(result.user)
+
+    return NextResponse.json({
+      user: {
+        ...result.user,
+        kycState: kycEvaluation.state,
+        accessLevel: kycEvaluation.accessLevel,
+        kycDescription: kycEvaluation.description,
+        canPerformFinancialMutations: kycEvaluation.canPerformFinancialMutations,
+      },
+    })
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Authentication error" },

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { enforceBackendKycAccess } from "@/lib/kycStateEngine"
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +17,11 @@ export async function POST(request: Request) {
     const { valid, user, error } = await verifySessionToken(authToken)
     if (!valid || !user) {
       return NextResponse.json({ message: error || "Invalid or expired session" }, { status: 401 })
+    }
+
+    const kycGuard = enforceBackendKycAccess(user, "FULL_ACCOUNT")
+    if (!kycGuard.allowed && kycGuard.response) {
+      return kycGuard.response
     }
 
     const { amount, channel } = await request.json()

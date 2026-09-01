@@ -15,6 +15,7 @@ model User {
   role               Role                 @default(USER)
   isVerified         Boolean              @default(true) @map("is_verified")
   kycStatus          String               @default("VERIFIED") @map("kyc_status")
+  kycState           String               @default("NOT_STARTED") @map("kyc_state")
   kycRejectionReason String?              @map("kyc_rejection_reason")
   kycSubmittedAt     DateTime?            @map("kyc_submitted_at")
   phone              String?

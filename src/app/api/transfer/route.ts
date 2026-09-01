@@ -5,6 +5,7 @@ import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { createNotification } from "@/lib/notifications"
 import { defaultBankingProvider } from "@/lib/bankingProvider"
+import { enforceBackendKycAccess } from "@/lib/kycStateEngine"
 import {
   apiUnauthorized,
   apiBadRequest,
@@ -13,7 +14,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    // 1. Authenticate User Session
+    // 1. Authenticate User Session & Enforce Centralized Backend KYC Access Level
     const cookieStore = await cookies()
     const authToken = cookieStore.get("auth")?.value
 
@@ -24,6 +25,11 @@ export async function POST(request: Request) {
     const { valid, user, error } = await verifySessionToken(authToken)
     if (!valid || !user) {
       return apiUnauthorized(error || "Invalid or expired session")
+    }
+
+    const kycGuard = enforceBackendKycAccess(user, "FULL_ACCOUNT")
+    if (!kycGuard.allowed && kycGuard.response) {
+      return kycGuard.response
     }
 
     // 2. Read Idempotency Key
