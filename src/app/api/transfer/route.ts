@@ -215,6 +215,9 @@ export async function POST(request: Request) {
       // INTERNAL BANKSPACE P2P TRANSFER FLOW (DUAL RECONCILED TRANSACTIONS)
       // -------------------------------------------------------------------
       createdTx = await client.$transaction(async (tx: any) => {
+        const now = new Date()
+        const transferNarration = note || `Internal Transfer of ₦${roundedAmount.toLocaleString()} to ${verifiedRecipientName}`
+
         // 1. Sender Outbound Transaction Record (DEBIT)
         const senderTx = await tx.transaction.create({
           data: {
@@ -231,12 +234,16 @@ export async function POST(request: Request) {
             type: "TRANSFER",
             category: "INTERNAL_TRANSFER",
             status: "SUCCESSFUL",
-            description: `Internal Transfer of ₦${roundedAmount.toLocaleString()} to ${verifiedRecipientName}`,
+            description: transferNarration,
+            narration: transferNarration,
             note: note || null,
+            createdAt: now,
+            completedAt: now,
           },
         })
 
         // 2. Recipient Inbound Transaction Record (CREDIT)
+        const creditNarration = note || `Transfer of ₦${roundedAmount.toLocaleString()} received from ${user.name}`
         await tx.transaction.create({
           data: {
             reference: `${referenceKey}_REC`,
@@ -252,8 +259,11 @@ export async function POST(request: Request) {
             type: "TRANSFER",
             category: "INCOMING_TRANSFER",
             status: "SUCCESSFUL",
-            description: `Transfer of ₦${roundedAmount.toLocaleString()} received from ${user.name}`,
+            description: creditNarration,
+            narration: creditNarration,
             note: note || null,
+            createdAt: now,
+            completedAt: now,
           },
         })
 

@@ -147,7 +147,9 @@ model Transaction {
   category           String        @default("Transfer")
   status             String        @default("SUCCESSFUL")
   note               String?
+  narration          String?
   createdAt          DateTime      @default(now()) @map("created_at")
+  completedAt        DateTime?     @map("completed_at")
   currency           String        @default("NGN")
   description        String?
   metadata           String?
