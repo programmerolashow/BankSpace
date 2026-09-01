@@ -79,7 +79,7 @@ export default function BankSpaceAccountNumberCard({
             {accountNumber}
           </span>
           {accountName && (
-            <p className="text-xs text-slate-500 font-medium mt-0.5">{accountName}</p>
+            <p className="text-xs text-slate-700 font-bold uppercase tracking-wider mt-0.5">{accountName}</p>
           )}
         </div>
 

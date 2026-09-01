@@ -77,17 +77,37 @@ export async function POST(request: Request) {
         return apiBadRequest(`BankSpace account '${queryTarget}' is currently suspended or restricted.`)
       }
 
+      const resolvedName = (internalAcc.accountName || internalAcc.user?.name || "BANKSPACE USER").toUpperCase()
+      const accountStatus = internalAcc.status || internalAcc.user?.kycStatus || "ACTIVE"
+
       return NextResponse.json({
         success: true,
         accountNumber: internalAcc.accountNumber,
-        accountName: internalAcc.accountName || internalAcc.user?.name || "BankSpace User",
+        accountName: resolvedName,
+        accountStatus,
         bankCode: "000000",
         bankName: "BankSpace Microfinance Bank",
         isInternal: true,
-        data: {
-          accountName: internalAcc.accountName || internalAcc.user?.name || "BankSpace User",
+        user: {
+          id: internalAcc.user?.id,
+          name: resolvedName,
+          email: internalAcc.user?.email,
+          phone: internalAcc.user?.phone,
+        },
+        account: {
+          id: internalAcc.id,
           accountNumber: internalAcc.accountNumber,
+          accountType: internalAcc.accountType || "CHECKING",
+          bankName: "BankSpace Microfinance Bank",
+          status: accountStatus,
+        },
+        data: {
+          accountName: resolvedName,
+          accountNumber: internalAcc.accountNumber,
+          accountStatus,
           bankCode: "000000",
+          bankName: "BankSpace Microfinance Bank",
+          isInternal: true,
         },
       })
     }
