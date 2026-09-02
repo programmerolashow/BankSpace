@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server"
 import { getPrismaClient } from "@/lib/prisma"
 import { verifyPaystackSignature } from "@/lib/payments"
-import { createNotification } from "@/lib/notifications"
+import { createNotification, notifyIncomingBankTransfer } from "@/lib/notifications"
 
 export async function POST(request: Request) {
   try {
@@ -196,13 +196,12 @@ export async function POST(request: Request) {
         throw err
       }
 
-      // 6. User Push Notification
+      // 6. User Push Notification using standardized template
       if (targetAcc.userId) {
-        await createNotification(
+        await notifyIncomingBankTransfer(
           targetAcc.userId,
-          "Incoming Bank Transfer Received",
-          `₦${numericAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} has been deposited to your account from ${senderName} via DVA NUBAN.`,
-          "SUCCESS"
+          bankName,
+          numericAmount
         ).catch(() => null)
       }
 

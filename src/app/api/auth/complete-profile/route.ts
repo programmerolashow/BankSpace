@@ -7,6 +7,10 @@ import { normalizePhoneNumberToAccountNumber } from "@/lib/phoneNormalization"
 import { verifyBvnWithProvider } from "@/lib/bvnVerificationService"
 import { verifyNinWithProvider } from "@/lib/ninVerificationService"
 import { evaluateIdentityConsistency } from "@/lib/identityConsistencyEngine"
+import {
+  notifyKycVerificationSuccess,
+  notifyKycVerificationFailure,
+} from "@/lib/notifications"
 
 export async function POST(request: Request) {
   try {
@@ -127,6 +131,7 @@ export async function POST(request: Request) {
     })
 
     if (consistencyResult.status === "MISMATCH") {
+      await notifyKycVerificationFailure(user.id).catch(() => null)
       return NextResponse.json(
         {
           message: consistencyResult.summary,
@@ -230,6 +235,10 @@ export async function POST(request: Request) {
       } catch (err: any) {
         console.warn("[Complete Profile BankAccount Provision Notice]:", err)
       }
+    }
+
+    if (finalKycStatus === "VERIFIED") {
+      await notifyKycVerificationSuccess(user.id).catch(() => null)
     }
 
     return NextResponse.json({

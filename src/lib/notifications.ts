@@ -57,3 +57,78 @@ export async function notifyAdmins(
     console.warn("[Notify Admins Notice]:", err)
   }
 }
+
+// -------------------------------------------------------------------
+// STANDARDIZED USER SYSTEM PUSH NOTIFICATION TEMPLATES
+// -------------------------------------------------------------------
+
+/**
+ * Trigger 1: Incoming BankSpace Transfer (P2P)
+ * Message: "You received ₦50,000 from John Doe."
+ */
+export async function notifyIncomingP2PTransfer(
+  userId: string,
+  senderName: string,
+  amount: number,
+  prismaInstance?: any
+) {
+  const formattedAmt = Number(amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+  const title = "Incoming BankSpace Transfer"
+  const message = `You received ₦${formattedAmt} from ${senderName}.`
+  return createNotification(userId, title, message, "SUCCESS", prismaInstance)
+}
+
+/**
+ * Trigger 2: Incoming Bank Transfer (External Bank via DVA NUBAN)
+ * Message: "₦100,000 was received into your BankSpace account from GTBank."
+ */
+export async function notifyIncomingBankTransfer(
+  userId: string,
+  bankName: string,
+  amount: number,
+  prismaInstance?: any
+) {
+  const formattedAmt = Number(amount).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+  const title = "Incoming Bank Transfer"
+  const message = `₦${formattedAmt} was received into your BankSpace account from ${bankName || "External Bank"}.`
+  return createNotification(userId, title, message, "SUCCESS", prismaInstance)
+}
+
+/**
+ * Trigger 3: KYC Verification Success (Approved)
+ * Message: "Your identity verification has been completed successfully."
+ */
+export async function notifyKycVerificationSuccess(
+  userId: string,
+  prismaInstance?: any
+) {
+  const title = "KYC Verification Completed"
+  const message = "Your identity verification has been completed successfully."
+  return createNotification(userId, title, message, "SUCCESS", prismaInstance)
+}
+
+/**
+ * Trigger 4: KYC Failure (Rejection / Mismatch)
+ * Message: "We couldn't verify your identity. Please review your information and try again."
+ */
+export async function notifyKycVerificationFailure(
+  userId: string,
+  prismaInstance?: any
+) {
+  const title = "KYC Verification Failed"
+  const message = "We couldn't verify your identity. Please review your information and try again."
+  return createNotification(userId, title, message, "WARNING", prismaInstance)
+}
+
+/**
+ * Trigger 5: Virtual Account Creation (DVA Provisioned)
+ * Message: "Your BankSpace receiving account is ready."
+ */
+export async function notifyVirtualAccountCreated(
+  userId: string,
+  prismaInstance?: any
+) {
+  const title = "Virtual Account Provisioned"
+  const message = "Your BankSpace receiving account is ready."
+  return createNotification(userId, title, message, "INFO", prismaInstance)
+}

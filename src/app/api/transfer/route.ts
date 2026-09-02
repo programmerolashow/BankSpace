@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
-import { createNotification } from "@/lib/notifications"
+import { createNotification, notifyIncomingP2PTransfer } from "@/lib/notifications"
 import { defaultBankingProvider } from "@/lib/bankingProvider"
 import { enforceBackendKycAccess } from "@/lib/kycStateEngine"
 import {
@@ -319,13 +319,12 @@ export async function POST(request: Request) {
         return senderTx
       })
 
-      // Notify Internal Recipient
+      // Notify Internal Recipient with standardized P2P template
       if (internalRecipientAcc.userId && internalRecipientAcc.userId !== user.id) {
-        await createNotification(
+        await notifyIncomingP2PTransfer(
           internalRecipientAcc.userId,
-          "Account Credited ↘️",
-          `You received ₦${roundedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })} from ${user.name}.`,
-          "SUCCESS"
+          user.name,
+          roundedAmount
         ).catch(() => null)
       }
     }

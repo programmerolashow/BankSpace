@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { getPrismaClient } from "@/lib/prisma"
+import { notifyVirtualAccountCreated } from "@/lib/notifications"
 
 export interface DvaProvisionResult {
   success: boolean
@@ -98,7 +99,7 @@ export async function provisionDedicatedVirtualAccount(userId: string): Promise<
     assignedDvaNuban = `12${phoneSuffix.slice(0, 8)}`
   }
 
-  // 4. Save DVA NUBAN to Database
+  // 4. Save DVA NUBAN to Database & Notify User
   await client.bankAccount.update({
     where: { id: primaryAccount.id },
     data: {
@@ -107,6 +108,8 @@ export async function provisionDedicatedVirtualAccount(userId: string): Promise<
       dvaProvider: "Paystack DVA",
     },
   })
+
+  await notifyVirtualAccountCreated(user.id).catch(() => null)
 
   return {
     success: true,
