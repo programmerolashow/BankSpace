@@ -15,6 +15,7 @@
     "@base-ui/react": "^1.6.0",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/client": "^6.19.3",
+    "@sentry/nextjs": "^9.5.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
