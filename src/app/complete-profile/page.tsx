@@ -266,26 +266,24 @@ export default function CompleteProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-xl space-y-6">
-        {/* Header Branding & Stepper Progress Bar */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-1.5 text-xs font-bold text-indigo-400 uppercase tracking-wider">
-            <ShieldCheck className="h-4 w-4 text-indigo-400" />
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-2xl space-y-6">
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-[#3f3cff]">
+            <ShieldCheck className="h-4 w-4 text-[#3f3cff]" />
             BankSpace Account Setup
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+          <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             Verify Your Identity
           </h1>
-          <p className="text-xs text-slate-400 font-semibold max-w-md mx-auto">
+          <p className="mx-auto max-w-lg text-sm text-slate-500 font-medium">
             Complete your financial KYC onboarding in a few quick steps.
           </p>
         </div>
 
-        {/* STEPPER PROGRESS INDICATOR (Steps 1 to 7) */}
-        <div className="rounded-2xl bg-slate-800/80 p-4 border border-slate-700/80 space-y-2">
-          <div className="flex items-center justify-between text-xs font-bold">
-            <span className="text-indigo-400">
+        <div className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-xs sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">
+            <span className="text-[#3f3cff]">
               {step === 1 && "Step 1 — Personal Information"}
               {step === 2 && "Step 2 — Phone Verification"}
               {step === 3 && "Step 3 — Identity (BVN & NIN)"}
@@ -294,87 +292,88 @@ export default function CompleteProfilePage() {
               {step === 6 && "Step 6 — BankSpace Account Ready"}
               {step === 7 && "Step 7 — Dedicated Receiving Account"}
             </span>
-            <span className="text-slate-400 font-mono">Step {step} of 7</span>
+            <span className="font-mono text-slate-400">Step {step} of 7</span>
           </div>
 
-          <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className="h-full bg-linear-to-r from-indigo-500 via-purple-500 to-emerald-500 transition-all duration-500"
+              className="h-full rounded-full bg-linear-to-r from-[#4938f2] via-[#5f5cef] to-[#3ad7a9] transition-all duration-500"
               style={{ width: `${(step / 7) * 100}%` }}
             />
           </div>
         </div>
 
-        {/* MAIN CARD CONTAINER */}
-        <div className="rounded-3xl border border-slate-800 bg-slate-800/50 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
           {error && (
-            <div className="mb-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-bold text-rose-400 flex items-center gap-2 animate-in fade-in">
+            <div className="mb-6 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-600">
               <Lock className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* STEP 1: PERSONAL INFORMATION */}
           {step === 1 && (
             <form onSubmit={handleStep1Next} className="space-y-5 animate-in fade-in">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <User className="h-5 w-5 text-indigo-400" /> Personal Details
+                <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-[#3f3cff]">
+                    <User className="h-5 w-5" />
+                  </div>
+                  Personal Details
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">Enter your official name as registered on your government IDs.</p>
+                <p className="mt-2 text-sm text-slate-500">Enter your official name as registered on your government IDs.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">First Name *</label>
+                  <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">First Name *</label>
                   <input
                     type="text"
                     placeholder="e.g. Illias"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Last Name *</label>
+                  <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Last Name *</label>
                   <input
                     type="text"
                     placeholder="e.g. Olanrewaju"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Middle Name (Optional)</label>
+                <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Middle Name (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. User"
                   value={middleName}
                   onChange={(e) => setMiddleName(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-semibold text-white outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Date of Birth *</label>
+                <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Date of Birth *</label>
                 <input
                   type="date"
                   value={dob}
                   onChange={(e) => setDob(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                   required
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-sm font-bold text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-indigo-600/30"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95"
               >
                 <span>Continue to Phone Verification</span>
                 <ArrowRight className="h-4 w-4" />
@@ -382,18 +381,20 @@ export default function CompleteProfilePage() {
             </form>
           )}
 
-          {/* STEP 2: PHONE VERIFICATION & OTP */}
           {step === 2 && (
             <div className="space-y-5 animate-in fade-in">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Phone className="h-5 w-5 text-indigo-400" /> Phone Verification
+                <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-[#3f3cff]">
+                    <Phone className="h-5 w-5" />
+                  </div>
+                  Phone Verification
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">Your verified phone number becomes your 10-digit BankSpace Account Number.</p>
+                <p className="mt-2 text-sm text-slate-500">Your verified phone number becomes your 10-digit BankSpace Account Number.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Nigerian Phone Number *</label>
+                <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Nigerian Phone Number *</label>
                 <div className="flex gap-2">
                   <input
                     type="tel"
@@ -401,44 +402,44 @@ export default function CompleteProfilePage() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     disabled={phoneVerified || otpSent}
-                    className="flex-1 rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
                   />
                   {!otpSent && (
                     <button
                       type="button"
                       onClick={handleSendOtp}
                       disabled={isSendingOtp || !phone}
-                      className="rounded-2xl bg-indigo-600 px-4 text-xs font-bold text-white hover:bg-indigo-500 transition-all cursor-pointer disabled:opacity-50"
+                      className="rounded-2xl bg-[#3f3cff] px-4 text-xs font-bold text-white transition hover:bg-[#332ce4] disabled:opacity-50"
                     >
-                      {isSendingOtp ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Send OTP"}
+                      {isSendingOtp ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Send OTP"}
                     </button>
                   )}
                 </div>
               </div>
 
               {accountPreview && (
-                <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 flex items-center justify-between text-xs">
-                  <span className="font-bold text-indigo-300">Allocated BankSpace Number:</span>
-                  <span className="font-mono font-black text-white tracking-widest text-sm">{accountPreview}</span>
+                <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 p-3.5 text-xs font-bold text-[#3f3cff]">
+                  <span>Allocated BankSpace Number</span>
+                  <span className="font-mono text-sm text-slate-900 tracking-widest">{accountPreview}</span>
                 </div>
               )}
 
               {otpSent && !phoneVerified && (
                 <div className="space-y-3 pt-2">
                   {otpSuccessMessage && (
-                    <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <p className="flex items-center gap-2 text-sm font-bold text-emerald-600">
                       <CheckCircle2 className="h-4 w-4" /> {otpSuccessMessage}
                     </p>
                   )}
 
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400">Enter 6-Digit OTP *</label>
+                  <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Enter 6-Digit OTP *</label>
                   <input
                     type="text"
                     maxLength={6}
                     placeholder="123456"
                     value={otpInput}
                     onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center tracking-widest font-mono font-black text-xl rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-white outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-center text-xl font-black tracking-[0.5em] text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                   />
 
                   <div className="flex gap-3 pt-2">
@@ -446,7 +447,7 @@ export default function CompleteProfilePage() {
                       type="button"
                       onClick={handleSendOtp}
                       disabled={cooldown > 0 || isSendingOtp}
-                      className="flex-1 rounded-2xl border border-slate-700 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                      className="flex-1 rounded-2xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                     >
                       {cooldown > 0 ? `Resend Code in ${cooldown}s` : "Resend OTP"}
                     </button>
@@ -454,9 +455,9 @@ export default function CompleteProfilePage() {
                       type="button"
                       onClick={handleVerifyOtp}
                       disabled={isVerifyingOtp || otpInput.length !== 6}
-                      className="flex-1 rounded-2xl bg-emerald-600 py-3 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50 cursor-pointer shadow-lg shadow-emerald-600/30"
+                      className="flex-1 rounded-2xl bg-emerald-500 py-3 text-xs font-bold text-white transition hover:bg-emerald-600 disabled:opacity-50 shadow-lg shadow-emerald-500/20"
                     >
-                      {isVerifyingOtp ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Verify & Continue"}
+                      {isVerifyingOtp ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Verify & Continue"}
                     </button>
                   </div>
                 </div>
@@ -464,45 +465,47 @@ export default function CompleteProfilePage() {
             </div>
           )}
 
-          {/* STEP 3: IDENTITY (BVN & NIN) */}
           {step === 3 && (
             <form onSubmit={handleStep3Next} className="space-y-5 animate-in fade-in">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-indigo-400" /> Identity Verification
+                <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-[#3f3cff]">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  Identity Verification
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">We match your BVN and NIN with official registries for regulatory compliance.</p>
+                <p className="mt-2 text-sm text-slate-500">We match your BVN and NIN with official registries for regulatory compliance.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">11-Digit BVN *</label>
+                <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">11-Digit BVN *</label>
                 <input
                   type="text"
                   maxLength={11}
                   placeholder="22200000000"
                   value={bvn}
                   onChange={(e) => setBvn(e.target.value.replace(/\D/g, ""))}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-mono font-bold text-white outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-mono font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">11-Digit NIN *</label>
+                <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">11-Digit NIN *</label>
                 <input
                   type="text"
                   maxLength={11}
                   placeholder="11100000000"
                   value={nin}
                   onChange={(e) => setNin(e.target.value.replace(/\D/g, ""))}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-mono font-bold text-white outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-mono font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                   required
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-sm font-bold text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-indigo-600/30"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95"
               >
                 <span>Continue to Address</span>
                 <ArrowRight className="h-4 w-4" />
@@ -510,52 +513,52 @@ export default function CompleteProfilePage() {
             </form>
           )}
 
-          {/* STEP 4: RESIDENTIAL ADDRESS */}
           {step === 4 && (
             <form onSubmit={handleStep4Submit} className="space-y-5 animate-in fade-in">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-indigo-400" /> Residential Address
+                <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-[#3f3cff]">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  Residential Address
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">Provide your current physical address for account activation.</p>
+                <p className="mt-2 text-sm text-slate-500">Provide your current physical address for account activation.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Street Address *</label>
+                <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Street Address *</label>
                 <input
                   type="text"
                   placeholder="e.g. 15 Marina Street, Victoria Island"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                   required
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">State *</label>
+                  <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">State *</label>
                   <select
                     value={state}
                     onChange={(e) => setState(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                   >
                     {NIGERIAN_STATES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">LGA *</label>
+                  <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">LGA *</label>
                   <input
                     type="text"
                     placeholder="e.g. Eti-Osa"
                     value={lga}
                     onChange={(e) => setLga(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3.5 text-sm font-bold text-white outline-none focus:border-indigo-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100"
                     required
                   />
                 </div>
@@ -563,7 +566,7 @@ export default function CompleteProfilePage() {
 
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-sm font-bold text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-indigo-600/30"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95"
               >
                 <span>Submit for Identity Verification</span>
                 <ArrowRight className="h-4 w-4" />
@@ -571,62 +574,54 @@ export default function CompleteProfilePage() {
             </form>
           )}
 
-          {/* STEP 5: VERIFICATION PROCESSING */}
           {step === 5 && (
-            <div className="py-12 text-center space-y-6 animate-in fade-in">
-              <div className="relative grid h-20 w-20 place-items-center rounded-full bg-indigo-500/10 border border-indigo-500/30 mx-auto text-indigo-400">
-                <Loader2 className="h-10 w-10 animate-spin text-indigo-400" />
+            <div className="space-y-6 py-12 text-center animate-in fade-in">
+              <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-indigo-200 bg-indigo-50 text-[#3f3cff]">
+                <Loader2 className="h-10 w-10 animate-spin" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-black text-white">Verifying your information...</h2>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium">
+                <h2 className="text-2xl font-black text-slate-950">Verifying your information...</h2>
+                <p className="mx-auto max-w-sm text-sm text-slate-500">
                   We are matching your profile with NIMC and NIBSS identity registries. This only takes a moment.
                 </p>
               </div>
             </div>
           )}
 
-          {/* STEP 6: BANKSPACE ACCOUNT READY */}
           {step === 6 && (
             <div className="space-y-6 animate-in fade-in text-center">
-              <div className="grid h-16 w-16 place-items-center rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mx-auto">
-                <CheckCircle2 className="h-9 w-9 text-emerald-400" />
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-500">
+                <CheckCircle2 className="h-9 w-9" />
               </div>
 
               <div className="space-y-1">
-                <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">
                   BankSpace Account Activated
                 </span>
-                <h2 className="text-3xl font-black text-white tracking-tight mt-2">
+                <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
                   Your Account is Ready!
                 </h2>
-                <p className="text-xs text-slate-400 font-semibold">
+                <p className="text-sm text-slate-500">
                   Use your BankSpace Account Number for instant P2P transfers.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5 space-y-3 text-left">
+              <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 text-left">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-400">
-                    BankSpace Account Number
-                  </span>
-                  <span className="rounded-md bg-indigo-500/20 px-2 py-0.5 text-[10px] font-bold text-indigo-300">
-                    P2P Transfers
-                  </span>
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#3f3cff]">BankSpace Account Number</span>
+                  <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-[#3f3cff]">P2P Transfers</span>
                 </div>
-                <p className="text-3xl font-black tracking-widest text-white font-mono">
-                  {allocatedBankSpaceAcc}
-                </p>
-                <div className="pt-2 border-t border-indigo-500/20 flex justify-between text-xs text-slate-300">
-                  <span>Account Name:</span>
-                  <span className="font-bold text-white uppercase">{registeredAccountName}</span>
+                <p className="font-mono text-3xl font-black tracking-[0.15em] text-slate-950">{allocatedBankSpaceAcc}</p>
+                <div className="flex items-center justify-between border-t border-indigo-200 pt-3 text-sm text-slate-600">
+                  <span>Account Name</span>
+                  <span className="font-black uppercase text-slate-900">{registeredAccountName}</span>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setStep(7)}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-4 text-sm font-bold text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-indigo-600/30"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95"
               >
                 <span>View External Receiving Account</span>
                 <ArrowRight className="h-4 w-4" />
@@ -634,42 +629,41 @@ export default function CompleteProfilePage() {
             </div>
           )}
 
-          {/* STEP 7: DEDICATED RECEIVING ACCOUNT (DVA) */}
           {step === 7 && (
             <div className="space-y-6 animate-in fade-in">
-              <div className="text-center space-y-1">
-                <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+              <div className="text-center space-y-2">
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">
                   External Receiving Account
                 </span>
-                <h2 className="text-2xl font-black text-white tracking-tight mt-2 flex items-center justify-center gap-2">
-                  <Building2 className="h-6 w-6 text-emerald-400" /> Receiving Account Details
+                <h2 className="mt-2 flex items-center justify-center gap-2 text-2xl font-black text-slate-950">
+                  <Building2 className="h-6 w-6 text-emerald-600" /> Receiving Account Details
                 </h2>
-                <p className="text-xs text-slate-400 font-semibold">
+                <p className="text-sm text-slate-500">
                   Use this dedicated NUBAN to receive deposits from commercial banks (GTBank, Zenith, Access, etc.).
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 space-y-4">
+              <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                 <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block">Bank Name</span>
-                  <span className="text-base font-bold text-white block mt-0.5">{allocatedDvaBankName}</span>
+                  <span className="block text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-600">Bank Name</span>
+                  <span className="mt-1 block text-lg font-black text-slate-900">{allocatedDvaBankName}</span>
                 </div>
 
-                <div className="pt-3 border-t border-emerald-500/20">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block">Account Number (NUBAN)</span>
-                  <span className="text-3xl font-black text-white font-mono tracking-widest block mt-0.5">{allocatedDvaNuban}</span>
+                <div className="border-t border-emerald-200 pt-3">
+                  <span className="block text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-600">Account Number (NUBAN)</span>
+                  <span className="mt-1 block font-mono text-3xl font-black tracking-[0.12em] text-slate-950">{allocatedDvaNuban}</span>
                 </div>
 
-                <div className="pt-3 border-t border-emerald-500/20">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block">Account Name</span>
-                  <span className="text-sm font-bold text-white uppercase block mt-0.5">{registeredAccountName}</span>
+                <div className="border-t border-emerald-200 pt-3">
+                  <span className="block text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-600">Account Name</span>
+                  <span className="mt-1 block text-base font-black uppercase text-slate-900">{registeredAccountName}</span>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => router.push("/dashboard")}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-emerald-500 to-indigo-600 py-4 text-sm font-black text-white hover:opacity-95 transition-all cursor-pointer shadow-lg shadow-emerald-500/30"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#3ad7a9] px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95"
               >
                 <span>Go to BankSpace Dashboard</span>
                 <Sparkles className="h-4 w-4" />
