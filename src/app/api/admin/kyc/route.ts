@@ -3,7 +3,10 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requireAdminSession } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
-import { getClientIp } from "@/lib/rateLimit"
+import {
+  notifyKycVerificationSuccess,
+  notifyKycVerificationFailure,
+} from "@/lib/notifications"
 import { apiUnauthorized, apiForbidden, apiBadRequest, apiInternalError } from "@/lib/errors"
 
 export async function GET(request: Request) {
@@ -34,6 +37,7 @@ export async function GET(request: Request) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" } },
         {
           bankAccounts: {
             some: { accountNumber: { contains: search, mode: "insensitive" } },
@@ -43,29 +47,30 @@ export async function GET(request: Request) {
     }
 
     if (status && status !== "ALL") {
-      where.kycStatus = status
+      where.OR = [{ kycState: status }, { kycStatus: status }]
     }
 
-    let submissions: any[] = []
+    let rawUsers: any[] = []
     let total = 0
-    let pendingCount = 0
-    let verifiedCount = 0
-    let rejectedCount = 0
 
     if (client.user && typeof client.user.findMany === "function") {
       try {
-        const [subList, totalCount, pendingC, verifiedC, rejectedC] = await Promise.all([
+        const [userList, totalCount] = await Promise.all([
           client.user.findMany({
             where,
             select: {
               id: true,
               name: true,
               email: true,
+              phone: true,
               role: true,
-              isVerified: true,
+              kycState: true,
               kycStatus: true,
+              bvnStatus: true,
+              ninStatus: true,
+              bvn: true,
+              nin: true,
               kycRejectionReason: true,
-              kycSubmittedAt: true,
               createdAt: true,
               updatedAt: true,
               bankAccounts: {
@@ -74,43 +79,62 @@ export async function GET(request: Request) {
                   accountNumber: true,
                   accountName: true,
                   bankName: true,
-                  balance: true,
+                  dvaNuban: true,
+                  dvaBankName: true,
                   status: true,
                   isPrimary: true,
                 },
               },
             },
-            orderBy: { updatedAt: "desc" },
+            orderBy: { createdAt: "desc" },
             skip,
             take: limit,
           }),
           client.user.count({ where }),
-          client.user.count({ where: { kycStatus: "PENDING" } }),
-          client.user.count({ where: { OR: [{ kycStatus: "VERIFIED" }, { isVerified: true }] } }),
-          client.user.count({ where: { kycStatus: "REJECTED" } }),
         ])
 
-        submissions = subList
+        rawUsers = userList
         total = totalCount
-        pendingCount = pendingC
-        verifiedCount = verifiedC
-        rejectedCount = rejectedC
       } catch (err) {
-        console.warn("[Admin KYC DB Query Notice]:", err)
+        console.warn("[Admin KYC Query Notice]:", err)
       }
     }
+
+    // Sanitize and mask sensitive PII (BVN & NIN)
+    const customers = rawUsers.map((u: any) => {
+      const primaryAcc = (u.bankAccounts || []).find((a: any) => a.isPrimary) || (u.bankAccounts || [])[0]
+      const rawBvn = u.bvn || ""
+      const rawNin = u.nin || ""
+
+      const maskedBvn = rawBvn.length === 11 ? `${rawBvn.slice(0, 3)}******${rawBvn.slice(-2)}` : null
+      const maskedNin = rawNin.length === 11 ? `${rawNin.slice(0, 3)}******${rawNin.slice(-2)}` : null
+
+      return {
+        id: u.id,
+        user: {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+        },
+        bankSpaceAccount: primaryAcc?.accountNumber || "N/A",
+        phone: u.phone || "N/A",
+        kycStatus: u.kycState || u.kycStatus || "NOT_STARTED",
+        bvnStatus: u.bvnStatus || (rawBvn ? "VERIFIED" : "PENDING"),
+        ninStatus: u.ninStatus || (rawNin ? "VERIFIED" : "PENDING"),
+        maskedBvn,
+        maskedNin,
+        virtualAccountStatus: primaryAcc?.dvaNuban ? `PROVISIONED (${primaryAcc.dvaNuban})` : "NOT_PROVISIONED",
+        dvaNuban: primaryAcc?.dvaNuban || null,
+        dvaBankName: primaryAcc?.dvaBankName || "Wema Bank / BankSpace Partner",
+        createdAt: u.createdAt,
+      }
+    })
 
     const totalPages = Math.ceil(total / limit) || 1
 
     return NextResponse.json({
       success: true,
-      submissions,
-      metrics: {
-        total,
-        pending: pendingCount,
-        verified: verifiedCount,
-        rejected: rejectedCount,
-      },
+      customers,
       pagination: {
         total,
         page,
@@ -138,73 +162,83 @@ export async function POST(request: Request) {
       return apiForbidden(authCheck.error || "Administrator privileges required.")
     }
 
-    const body = await request.json().catch(() => ({}))
+    const body = await request.json()
     const { userId, action, reason } = body
 
     if (!userId || !action) {
-      return apiBadRequest("User ID and action parameters are required.")
-    }
-
-    if (action === "REJECT" && !reason?.trim()) {
-      return apiBadRequest("A rejection reason is required when rejecting verification.")
+      return apiBadRequest("userId and action are required parameters.")
     }
 
     const { client } = getPrismaClient()
-    const auditAction = action === "APPROVE" ? "KYC_APPROVE" : "KYC_REJECT"
+    let updatedKycState = "ACTIVE"
+    let updateData: any = {}
 
-    if (action === "APPROVE") {
-      await client.user.update({
-        where: { id: userId },
-        data: {
-          isVerified: true,
+    switch (action) {
+      case "APPROVE":
+        updatedKycState = "ACTIVE"
+        updateData = {
+          kycState: "ACTIVE",
           kycStatus: "VERIFIED",
+          isVerified: true,
+          bvnStatus: "VERIFIED",
+          ninStatus: "VERIFIED",
           kycRejectionReason: null,
-        },
-      })
-    } else if (action === "REJECT") {
-      await client.user.update({
-        where: { id: userId },
-        data: {
-          isVerified: false,
+        }
+        await notifyKycVerificationSuccess(userId).catch(() => null)
+        break
+
+      case "REJECT":
+        updatedKycState = "KYC_FAILED"
+        updateData = {
+          kycState: "KYC_FAILED",
           kycStatus: "REJECTED",
-          kycRejectionReason: reason.trim(),
-        },
-      })
-    } else {
-      return apiBadRequest("Invalid KYC action. Supported actions: APPROVE, REJECT.")
+          isVerified: false,
+          kycRejectionReason: reason || "Identity documents could not be verified.",
+        }
+        await notifyKycVerificationFailure(userId).catch(() => null)
+        break
+
+      case "REVIEW":
+        updatedKycState = "MANUAL_REVIEW"
+        updateData = {
+          kycState: "MANUAL_REVIEW",
+          kycStatus: "PENDING",
+        }
+        break
+
+      case "SUSPEND":
+        updatedKycState = "SUSPENDED"
+        updateData = {
+          kycState: "SUSPENDED",
+          kycStatus: "SUSPENDED",
+          isVerified: false,
+        }
+        break
+
+      case "REQUEST_REVERIFICATION":
+        updatedKycState = "NOT_STARTED"
+        updateData = {
+          kycState: "NOT_STARTED",
+          kycStatus: "NOT_STARTED",
+          isVerified: false,
+          kycRejectionReason: reason || "Re-verification requested by compliance team.",
+        }
+        break
+
+      default:
+        return apiBadRequest("Invalid action. Supported: APPROVE, REJECT, REVIEW, SUSPEND, REQUEST_REVERIFICATION")
     }
 
-    // Write Formal Audit Log Entry
-    const ipAddress = getClientIp(request)
-    const userAgent = request.headers.get("user-agent") || undefined
-
-    if (client.auditLog && typeof client.auditLog.create === "function") {
-      try {
-        await client.auditLog.create({
-          data: {
-            adminId: authCheck.user?.id,
-            adminEmail: authCheck.user?.email,
-            adminName: authCheck.user?.name,
-            action: auditAction,
-            targetEntity: "KycSubmission",
-            targetId: userId,
-            ipAddress,
-            userAgent,
-            metadata: JSON.stringify({
-              action,
-              reason: reason || "Compliance verification approved",
-              timestamp: new Date().toISOString(),
-            }),
-          },
-        })
-      } catch (err) {
-        console.warn("[Admin KYC Audit Log Notice]:", err)
-      }
-    }
+    await client.user.update({
+      where: { id: userId },
+      data: updateData,
+    })
 
     return NextResponse.json({
       success: true,
-      message: `KYC submission ${action} decision recorded successfully.`,
+      message: `KYC status updated to ${updatedKycState} for user ${userId}`,
+      action,
+      kycState: updatedKycState,
     })
   } catch (err) {
     return apiInternalError(err)
