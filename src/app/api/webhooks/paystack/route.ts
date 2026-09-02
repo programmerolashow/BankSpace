@@ -34,23 +34,36 @@ export async function POST(request: Request) {
     }
 
     const { event, data } = payload
-    const reference = data.reference || data.tx_ref || `PAY_${Date.now()}`
+    const reference = String(data.reference || data.tx_ref || `PAY_${Date.now()}`).trim()
+    const eventId = String(payload.event_id || data.event_id || payload.id || reference).trim()
+    const providerTxId = String(data.id || data.transaction_id || reference).trim()
 
     const { client } = getPrismaClient()
 
-    if (!client.transaction || typeof client.transaction.findUnique !== "function") {
+    if (!client.transaction) {
       return NextResponse.json({ status: "success", message: "Webhook acknowledged" }, { status: 200 })
     }
 
-    // 3. Idempotency Anti-Replay Check
-    const existingTx = await client.transaction.findUnique({
-      where: { reference },
-      include: { recipientAccount: true, senderAccount: true },
+    // 3. Mandatory Unique Constraint Pre-Inspection Check (reference, eventId, providerTxId)
+    const existingTx = await client.transaction.findFirst({
+      where: {
+        OR: [
+          { reference },
+          ...(eventId ? [{ eventId }] : []),
+          ...(providerTxId ? [{ providerTxId }] : []),
+        ],
+      },
     })
 
     if (existingTx) {
       return NextResponse.json(
-        { status: "success", isReplay: true, message: "Webhook event already processed successfully" },
+        {
+          status: "success",
+          isReplay: true,
+          message: "Webhook event/reference already processed successfully. Duplicate credit prevented.",
+          transactionId: existingTx.id,
+          reference: existingTx.reference,
+        },
         { status: 200 }
       )
     }
@@ -115,58 +128,72 @@ export async function POST(request: Request) {
         data.authorization?.narration ||
         `External Bank Transfer Deposit via DVA NUBAN ${targetAcc.dvaNuban || targetAcc.accountNumber}`
 
-      // 5. Atomic Ledger Settlement (Transaction Creation + Balance Credit + LedgerEntry)
-      const createdDepositTx = await client.$transaction(async (tx: any) => {
-        const depositTx = await tx.transaction.create({
-          data: {
-            reference,
-            providerRef: String(data.id || reference),
-            recipientAccountId: targetAcc.id,
-            senderName,
-            recipientName: targetAcc.accountName || targetAcc.user?.name || "BankSpace Customer",
-            bankName,
-            accountNumber: targetAcc.accountNumber,
-            amount: numericAmount,
-            fee: Number(data.fees || 0) / 100,
-            currency: "NGN",
-            type: "DEPOSIT",
-            category: "EXTERNAL_BANK_DEPOSIT",
-            status: "SUCCESSFUL",
-            description: narration,
-            narration,
-            note: narration,
-            createdAt: now,
-            completedAt: now,
-          },
-        })
-
-        // Increment Recipient Balance
-        const incrementResult = await tx.bankAccount.updateMany({
-          where: { id: targetAcc.id, status: "ACTIVE" },
-          data: { balance: { increment: numericAmount } },
-        })
-
-        if (incrementResult.count === 0) {
-          throw new Error("Failed to credit target bank account balance.")
-        }
-
-        const updatedAcc = await tx.bankAccount.findUnique({ where: { id: targetAcc.id } })
-
-        // Create CREDIT Ledger Entry
-        if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
-          await tx.ledgerEntry.create({
+      // 5. Atomic Ledger Settlement with Database Unique Constraints
+      let createdDepositTx: any = null
+      try {
+        createdDepositTx = await client.$transaction(async (tx: any) => {
+          const depositTx = await tx.transaction.create({
             data: {
-              transactionId: depositTx.id,
-              bankAccountId: targetAcc.id,
-              entryType: "CREDIT",
+              reference,
+              eventId,
+              providerTxId,
+              providerRef: providerTxId,
+              recipientAccountId: targetAcc.id,
+              senderName,
+              recipientName: targetAcc.accountName || targetAcc.user?.name || "BankSpace Customer",
+              bankName,
+              accountNumber: targetAcc.accountNumber,
               amount: numericAmount,
-              balanceAfter: updatedAcc?.balance || 0.0,
+              fee: Number(data.fees || 0) / 100,
+              currency: "NGN",
+              type: "DEPOSIT",
+              category: "EXTERNAL_BANK_DEPOSIT",
+              status: "SUCCESSFUL",
+              description: narration,
+              narration,
+              note: narration,
+              createdAt: now,
+              completedAt: now,
             },
           })
-        }
 
-        return depositTx
-      })
+          // Increment Recipient Balance
+          const incrementResult = await tx.bankAccount.updateMany({
+            where: { id: targetAcc.id, status: "ACTIVE" },
+            data: { balance: { increment: numericAmount } },
+          })
+
+          if (incrementResult.count === 0) {
+            throw new Error("Failed to credit target bank account balance.")
+          }
+
+          const updatedAcc = await tx.bankAccount.findUnique({ where: { id: targetAcc.id } })
+
+          // Create CREDIT Ledger Entry
+          if (tx.ledgerEntry && typeof tx.ledgerEntry.create === "function") {
+            await tx.ledgerEntry.create({
+              data: {
+                transactionId: depositTx.id,
+                bankAccountId: targetAcc.id,
+                entryType: "CREDIT",
+                amount: numericAmount,
+                balanceAfter: updatedAcc?.balance || 0.0,
+              },
+            })
+          }
+
+          return depositTx
+        })
+      } catch (err: any) {
+        // Trap Prisma Unique Constraint Violation (P2002) - Concurrent Replay Prevention
+        if (err?.code === "P2002" || err?.message?.includes("Unique constraint")) {
+          return NextResponse.json(
+            { status: "success", isReplay: true, message: "Duplicate webhook event trapped by database unique constraint." },
+            { status: 200 }
+          )
+        }
+        throw err
+      }
 
       // 6. User Push Notification
       if (targetAcc.userId) {
