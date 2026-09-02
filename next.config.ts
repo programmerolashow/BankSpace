@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { NextConfig } from "next"
-import { withSentryConfig } from "@sentry/nextjs/config"
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -59,9 +59,29 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withSentryConfig(nextConfig, {
-  silent: !process.env.CI,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-})
+let exportConfig: any = nextConfig
+
+try {
+  let sentryConfigModule: any = null
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    sentryConfigModule = require("@sentry/nextjs/config")
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    sentryConfigModule = require("@sentry/nextjs")
+  }
+
+  const withSentryConfig = sentryConfigModule?.withSentryConfig || sentryConfigModule?.default?.withSentryConfig
+  if (typeof withSentryConfig === "function") {
+    exportConfig = withSentryConfig(nextConfig, {
+      silent: !process.env.CI,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+    })
+  }
+} catch {
+  // @sentry/nextjs is optional; default to standard NextConfig if not installed in environment
+}
+
+export default exportConfig
