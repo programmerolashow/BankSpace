@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { requireAdminSession } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { reconcileAllDvaAccounts } from "@/lib/dvaReconciliationService"
 import { apiForbidden, apiInternalError } from "@/lib/errors"
 
 export async function GET() {
@@ -20,6 +21,14 @@ export async function GET() {
     let totalAccountsAudited = 0
     let totalTransactionsAudited = 0
 
+    // 1. Run Paystack DVA Requery & Unprocessed Webhook Reconciliation
+    const dvaReport = await reconcileAllDvaAccounts().catch(() => ({
+      totalAccountsAudited: 0,
+      accountsReconciledCount: 0,
+      reports: [],
+    }))
+
+    // 2. Perform Double-Entry Ledger Integrity Audit
     if (client.bankAccount && typeof client.bankAccount.findMany === "function") {
       try {
         const accounts = await client.bankAccount.findMany({
@@ -61,32 +70,6 @@ export async function GET() {
       }
     }
 
-    if (client.transaction && typeof client.transaction.findMany === "function") {
-      try {
-        const transactions = await client.transaction.findMany({
-          where: { status: "PROCESSING" },
-        })
-        totalTransactionsAudited = transactions.length
-
-        for (const tx of transactions) {
-          // Flag stuck processing transactions older than 10 minutes
-          const ageMs = Date.now() - new Date(tx.createdAt).getTime()
-          if (ageMs > 10 * 60 * 1000) {
-            discrepancies.push({
-              type: "STUCK_TRANSACTION",
-              reference: tx.reference,
-              amount: tx.amount,
-              status: tx.status,
-              createdAt: tx.createdAt,
-              severity: "MEDIUM",
-            })
-          }
-        }
-      } catch (err) {
-        console.warn("[Reconciliation Transactions Check Notice]:", err)
-      }
-    }
-
     const isReconciled = discrepancies.length === 0
 
     return NextResponse.json({
@@ -96,7 +79,9 @@ export async function GET() {
         totalAccountsAudited,
         totalTransactionsAudited,
         discrepancyCount: discrepancies.length,
+        dvaAccountsReconciledCount: dvaReport.accountsReconciledCount,
       },
+      dvaReconciliationReport: dvaReport,
       discrepancies,
     })
   } catch (err) {
