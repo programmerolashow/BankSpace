@@ -122,6 +122,9 @@ model BankAccount {
   dailyLimit           Float               @default(1000000.0) @map("daily_limit")
   pendingBalance       Float               @default(0.0) @map("pending_balance")
   status               String              @default("ACTIVE")
+  dvaNuban             String?             @unique @map("dva_nuban")
+  dvaBankName          String?             @default("Wema Bank / BankSpace Partner") @map("dva_bank_name")
+  dvaProvider          String?             @default("Paystack DVA") @map("dva_provider")
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   investmentHoldings   InvestmentHolding[]
   ledgerEntries        LedgerEntry[]

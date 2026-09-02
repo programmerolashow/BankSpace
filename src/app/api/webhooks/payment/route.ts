@@ -60,7 +60,13 @@ export async function POST(request: Request) {
       let targetAcc = null
       if (receiverAccNumber) {
         targetAcc = await client.bankAccount.findFirst({
-          where: { accountNumber: receiverAccNumber, status: "ACTIVE" },
+          where: {
+            OR: [
+              { accountNumber: receiverAccNumber },
+              { dvaNuban: receiverAccNumber },
+            ],
+            status: "ACTIVE",
+          },
         })
       }
 

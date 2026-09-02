@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { verifySessionToken } from "@/lib/auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { provisionDedicatedVirtualAccount } from "@/lib/paystackDvaService"
 import { apiUnauthorized, apiInternalError } from "@/lib/errors"
 
 export async function GET() {
@@ -30,14 +31,21 @@ export async function GET() {
       }, { status: 404 })
     }
 
+    // Auto-provision or fetch Dedicated Virtual Account (DVA) NUBAN
+    const dvaResult = await provisionDedicatedVirtualAccount(user.id)
+
     return NextResponse.json({
       success: true,
+      bankSpaceAccountNumber: primaryAccount.accountNumber,
+      externalDvaNuban: dvaResult.dvaNuban,
+      externalBankName: dvaResult.dvaBankName,
       virtualAccount: {
-        accountNumber: primaryAccount.accountNumber,
-        accountName: primaryAccount.accountName || user.name,
-        bankName: "BankSpace Microfinance Bank",
-        bankCode: "000000",
-        providerName: "BankSpace / Paystack Titan",
+        accountNumber: dvaResult.dvaNuban,
+        accountName: (primaryAccount.accountName || user.name).toUpperCase(),
+        bankName: dvaResult.dvaBankName,
+        bankCode: "035",
+        bankSpaceAccountNumber: primaryAccount.accountNumber,
+        providerName: dvaResult.dvaProvider,
         currency: "NGN",
         status: primaryAccount.status,
       },
