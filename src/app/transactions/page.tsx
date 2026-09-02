@@ -195,8 +195,22 @@ export default function TransactionsPage() {
                       {isCredit ? <ArrowDownLeft className="h-5 w-5" /> : <ArrowUpRight className="h-5 w-5" />}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-900 text-sm">{tx.description || `${tx.type} - ${tx.recipientName}`}</p>
-                      <p className="text-xs text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-slate-900 text-sm">{tx.description || `${tx.type} - ${tx.recipientName}`}</p>
+                        <span className="rounded-md bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[9px] font-extrabold text-indigo-700 uppercase">
+                          {tx.category || tx.type}
+                        </span>
+                        {tx.category === "INTERNAL_TRANSFER" ? (
+                          <span className="rounded-md bg-violet-100 text-violet-800 px-1.5 py-0.5 text-[9px] font-extrabold">
+                            BankSpace P2P
+                          </span>
+                        ) : (
+                          <span className="rounded-md bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[9px] font-extrabold">
+                            External Bank
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
                         {tx.bankName} • {formattedDate}
                       </p>
                     </div>

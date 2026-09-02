@@ -159,6 +159,7 @@ model Transaction {
   providerRef        String?       @map("provider_ref")
   eventId            String?       @unique @map("event_id")
   providerTxId       String?       @unique @map("provider_tx_id")
+  sourceType         String?       @default("BANKSPACE") @map("source_type")
   updatedAt          DateTime      @updatedAt @map("updated_at")
   ledgerEntries      LedgerEntry[]
   recipientAccount   BankAccount?  @relation("RecipientAccount", fields: [recipientAccountId], references: [id])
