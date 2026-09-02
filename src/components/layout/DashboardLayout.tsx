@@ -34,6 +34,7 @@ const navItems = [
   { href: "/cards", label: "Cards", icon: CreditCard },
   { href: "/transactions", label: "Transactions", icon: History },
   { href: "/transfer", label: "Transfer", icon: ArrowLeftRight },
+  { href: "/receive", label: "Receive Money", icon: ArrowUpRight },
   { href: "/investments", label: "Investments", icon: TrendingUp },
   { href: "/savings", label: "Savings", icon: PiggyBank },
   { href: "/budgets", label: "Budgets", icon: PieChart },
