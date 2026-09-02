@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { findOrCreateOAuthAccount, getAppOrigin, redirectApp } from "@/lib/auth"
+import { deriveUserKycState } from "@/lib/kycStateEngine"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -81,8 +82,10 @@ export async function GET(request: Request) {
       idToken: tokenData.id_token,
     })
 
-    // 6. Create authenticated session cookie and redirect to /complete-profile if KYC incomplete, else /dashboard
-    const targetPath = user?.isProfileComplete ? "/dashboard" : "/complete-profile"
+    // 6. Multi-Stage Onboarding Check: Profile Completeness -> Phone Verification -> KYC Status
+    const kycEvaluation = deriveUserKycState(user)
+    const isFullyComplete = kycEvaluation.state === "ACTIVE" || kycEvaluation.state === "KYC_VERIFIED"
+    const targetPath = isFullyComplete ? "/dashboard" : "/complete-profile"
     const redirectTargetUrl = new URL(targetPath, origin).toString()
     const response = NextResponse.redirect(redirectTargetUrl)
 

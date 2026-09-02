@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { loginWithOAuth, getAppOrigin, redirectApp } from "@/lib/auth"
+import { deriveUserKycState } from "@/lib/kycStateEngine"
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -9,7 +10,9 @@ export async function GET(request: Request) {
   try {
     const { token, user } = await loginWithOAuth(provider)
 
-    const targetPath = user?.isProfileComplete ? "/dashboard" : "/complete-profile"
+    const kycEvaluation = deriveUserKycState(user)
+    const isFullyComplete = kycEvaluation.state === "ACTIVE" || kycEvaluation.state === "KYC_VERIFIED"
+    const targetPath = isFullyComplete ? "/dashboard" : "/complete-profile"
     const redirectTargetUrl = new URL(targetPath, origin).toString()
     const response = NextResponse.redirect(redirectTargetUrl)
 
