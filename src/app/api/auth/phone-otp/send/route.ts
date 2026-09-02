@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const result = await sendPhoneOtp(user.id, phone.trim())
 
     return NextResponse.json({
-      success: true,
+      success: result.success,
       message: result.message,
       cooldownSeconds: result.cooldownSeconds || 60,
     })

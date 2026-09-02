@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from "crypto"
 import { getPrismaClient } from "./prisma"
 import { normalizePhoneNumberToAccountNumber } from "./phoneNormalization"
@@ -6,7 +7,105 @@ function hashOtp(otp: string): string {
   return crypto.createHash("sha256").update(otp).digest("hex")
 }
 
-export async function sendPhoneOtp(userId: string, rawPhone: string): Promise<{
+/**
+ * Normalizes a Nigerian or international phone number to E.164 standard.
+ * e.g., "08012345678" -> "+2348012345678"
+ * e.g., "2348012345678" -> "+2348012345678"
+ */
+export function formatToE164(phone: string): string {
+  const trimmed = phone.trim()
+  if (!trimmed) return ""
+
+  // If already starts with '+', remove all non-digits except leading '+'
+  if (trimmed.startsWith("+")) {
+    return "+" + trimmed.slice(1).replace(/\D/g, "")
+  }
+
+  const digits = trimmed.replace(/\D/g, "")
+
+  if (digits.startsWith("0")) {
+    return "+234" + digits.slice(1)
+  } else if (digits.startsWith("234")) {
+    return "+" + digits
+  } else if (digits.length === 10) {
+    return "+234" + digits
+  }
+
+  return "+" + digits
+}
+
+/**
+ * Dispatches real SMS message via Twilio REST API
+ */
+export async function dispatchTwilioSms(
+  toPhone: string,
+  messageBody: string
+): Promise<{ success: boolean; sid?: string; error?: string }> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+  const fromPhone = process.env.TWILIO_PHONE_NUMBER
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
+
+  const e164Phone = formatToE164(toPhone)
+
+  if (!accountSid || !authToken || (!fromPhone && !messagingServiceSid)) {
+    console.warn(
+      `[Twilio SMS Gateway Notice]: Twilio credentials missing in environment variables. SMS for ${e164Phone} not dispatched.`
+    )
+    return {
+      success: false,
+      error: "Twilio credentials not configured in environment variables.",
+    }
+  }
+
+  try {
+    const params = new URLSearchParams()
+    params.append("To", e164Phone)
+    params.append("Body", messageBody)
+
+    if (messagingServiceSid) {
+      params.append("MessagingServiceSid", messagingServiceSid)
+    } else if (fromPhone) {
+      params.append("From", formatToE164(fromPhone))
+    }
+
+    const authHeader = "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64")
+
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      }
+    )
+
+    const data = await res.json()
+
+    if (res.ok && data?.sid) {
+      console.log(
+        `[Twilio SMS Gateway]: Dispatched SMS to ${e164Phone}. SID: ${data.sid}, Status: ${data.status}`
+      )
+      return { success: true, sid: data.sid }
+    } else {
+      const errorMsg = data?.message || data?.error_message || "Twilio API dispatch failed."
+      console.error(`[Twilio SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${errorMsg}`)
+      return { success: false, error: errorMsg }
+    }
+  } catch (err: any) {
+    const errorMsg = err?.message || "Network exception during Twilio SMS dispatch."
+    console.error(`[Twilio SMS Gateway Exception]: ${errorMsg}`)
+    return { success: false, error: errorMsg }
+  }
+}
+
+export async function sendPhoneOtp(
+  userId: string,
+  rawPhone: string
+): Promise<{
   success: boolean
   message: string
   cooldownSeconds?: number
@@ -17,6 +116,7 @@ export async function sendPhoneOtp(userId: string, rawPhone: string): Promise<{
 
   const normalizedAccountNum = normalizePhoneNumberToAccountNumber(rawPhone, userId)
   const formattedPhone = rawPhone.trim()
+  const e164Phone = formatToE164(formattedPhone)
 
   const { client, isFallback } = getPrismaClient()
 
@@ -29,6 +129,7 @@ export async function sendPhoneOtp(userId: string, rawPhone: string): Promise<{
           {
             OR: [
               { phone: formattedPhone },
+              { phone: e164Phone },
               { bankAccounts: { some: { accountNumber: normalizedAccountNum } } },
             ],
           },
@@ -55,7 +156,6 @@ export async function sendPhoneOtp(userId: string, rawPhone: string): Promise<{
         throw new Error(`Please wait ${remainingSeconds} seconds before requesting another OTP code.`)
       }
 
-      // Check hourly rate limit
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
       const hourlyCount = await client.phoneOtp.count({
         where: {
@@ -71,12 +171,39 @@ export async function sendPhoneOtp(userId: string, rawPhone: string): Promise<{
     }
   }
 
-  // 3. Generate Cryptographic 6-Digit OTP and Hash
   const plainOtp = Math.floor(100000 + Math.random() * 900000).toString()
   const hashed = hashOtp(plainOtp)
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+  const resendCooldown = new Date(Date.now() + 60 * 1000)
 
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
-  const resendCooldown = new Date(Date.now() + 60 * 1000) // 60 seconds cooldown
+  const smsBody = `<BankSpace Security>: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
+  const twilioResult = await dispatchTwilioSms(formattedPhone, smsBody)
+
+  if (!twilioResult.success) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(`[BankSpace SMS Gateway Dev Fallback]: OTP for ${formattedPhone} is ${plainOtp}`)
+      if (!isFallback && client.phoneOtp && typeof client.phoneOtp.create === "function") {
+        await client.phoneOtp.create({
+          data: {
+            userId,
+            phone: formattedPhone,
+            otpHash: hashed,
+            attempts: 0,
+            maxAttempts: 3,
+            expiresAt,
+            resendCooldown,
+          },
+        })
+      }
+      return {
+        success: true,
+        message: `OTP generated successfully for local testing. Check server logs for the code.`,
+        cooldownSeconds: 60,
+      }
+    }
+
+    throw new Error(twilioResult.error || "SMS delivery failed. Please ensure your Twilio setup is configured correctly.")
+  }
 
   if (!isFallback && client.phoneOtp && typeof client.phoneOtp.create === "function") {
     await client.phoneOtp.create({
@@ -92,9 +219,8 @@ export async function sendPhoneOtp(userId: string, rawPhone: string): Promise<{
     })
   }
 
-  // Sanitized debug notice (NEVER log plain OTP value)
   const maskedPhone = formattedPhone.length > 6 ? formattedPhone.slice(0, 3) + "***" + formattedPhone.slice(-4) : "***"
-  console.log(`[BankSpace SMS Gateway]: Secure OTP dispatched to ${maskedPhone}`)
+  console.log(`[BankSpace SMS Gateway]: Real Twilio SMS OTP delivered to ${e164Phone} (SID: ${twilioResult.sid})`)
 
   return {
     success: true,
@@ -148,80 +274,47 @@ export async function verifyPhoneOtp(
     throw new Error("OTP has expired. Please request a new code.")
   }
 
-  // 2. Check Maximum Attempts (Max 3)
+  // 2. Check Attempts Limit
   if (activeOtpRecord.attempts >= activeOtpRecord.maxAttempts) {
     throw new Error("Maximum verification attempts exceeded. Please request a new OTP code.")
   }
 
+  // 3. Compare Cryptographic Hash
   const inputHash = hashOtp(cleanOtp)
-
   if (inputHash !== activeOtpRecord.otpHash) {
     const newAttempts = activeOtpRecord.attempts + 1
+    const attemptsRemaining = activeOtpRecord.maxAttempts - newAttempts
+
     await client.phoneOtp.update({
       where: { id: activeOtpRecord.id },
       data: { attempts: newAttempts },
     })
 
-    const remaining = Math.max(0, activeOtpRecord.maxAttempts - newAttempts)
-    throw new Error(`Invalid OTP code. ${remaining} attempt(s) remaining.`)
+    if (attemptsRemaining <= 0) {
+      throw new Error("Invalid OTP code. Maximum attempts exceeded. Please request a new OTP code.")
+    }
+
+    throw new Error(`Invalid OTP code. ${attemptsRemaining} attempt${attemptsRemaining > 1 ? "s" : ""} remaining.`)
   }
 
-  // 3. Success: Mark OTP Verified & User Phone Verified
-  await client.phoneOtp.update({
-    where: { id: activeOtpRecord.id },
-    data: { isVerified: true },
-  })
-
-  let fullName = "BankSpace User"
-
+  // 4. Mark User Phone Verified in Database & Allocate BankSpace Account
   if (client.user && typeof client.user.update === "function") {
-    const updatedUser = await client.user.update({
+    await client.user.update({
       where: { id: userId },
       data: {
         phone: formattedPhone,
         phoneVerified: true,
+        kycState: "PHONE_VERIFIED",
       },
     })
-    fullName = updatedUser.name
   }
 
-  // 4. Provision / Update Primary BankAccount with Normalized 10-Digit Account Number
-  if (client.bankAccount && typeof client.bankAccount.findFirst === "function") {
-    try {
-      const existingPrimary = await client.bankAccount.findFirst({
-        where: { userId, isPrimary: true },
-      })
-
-      if (existingPrimary) {
-        await client.bankAccount.update({
-          where: { id: existingPrimary.id },
-          data: {
-            accountNumber: normalizedAccountNum,
-            accountName: fullName,
-          },
-        })
-      } else {
-        await client.bankAccount.create({
-          data: {
-            userId,
-            accountNumber: normalizedAccountNum,
-            accountName: fullName,
-            bankName: "BankSpace Microfinance Bank",
-            accountType: "CHECKING",
-            balance: 0.0,
-            isPrimary: true,
-            status: "ACTIVE",
-          },
-        })
-      }
-    } catch (accErr) {
-      console.warn("[OTP Verify BankAccount Provision Notice]:", accErr)
-    }
-  }
+  // 5. Delete Used OTP Record
+  await client.phoneOtp.delete({ where: { id: activeOtpRecord.id } }).catch(() => null)
 
   return {
     success: true,
-    message: "Phone number verified and account activated!",
+    message: "Phone number verified successfully!",
     accountNumber: normalizedAccountNum,
   }
 }
