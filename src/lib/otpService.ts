@@ -4,6 +4,10 @@ import { getPrismaClient } from "./prisma"
 import { normalizePhoneNumberToAccountNumber } from "./phoneNormalization"
 
 function hashOtp(otp: string): string {
+  const secret = process.env.OTP_SECRET || process.env.OTP_HASH_SECRET || ""
+  if (secret) {
+    return crypto.createHmac("sha256", secret).update(otp).digest("hex")
+  }
   return crypto.createHash("sha256").update(otp).digest("hex")
 }
 
@@ -159,9 +163,11 @@ export async function sendPhoneOtp(
     throw new Error("Phone number is required.")
   }
 
-  const normalizedAccountNum = normalizePhoneNumberToAccountNumber(rawPhone, userId)
   const formattedPhone = rawPhone.trim()
   const e164Phone = formatToE164(formattedPhone)
+  if (!e164Phone) throw new Error("Invalid phone number provided.")
+
+  const normalizedAccountNum = normalizePhoneNumberToAccountNumber(e164Phone, userId)
 
   const { client, isFallback } = getPrismaClient()
 
@@ -190,7 +196,7 @@ export async function sendPhoneOtp(
   // 2. Rate Limiting & Resend Cooldown (60 Seconds, Max 5/hr)
   if (!isFallback && client.phoneOtp && typeof client.phoneOtp.findFirst === "function") {
     const existingOtp = await client.phoneOtp.findFirst({
-      where: { userId, phone: formattedPhone },
+      where: { userId, phone: e164Phone },
       orderBy: { createdAt: "desc" },
     })
 
@@ -206,7 +212,7 @@ export async function sendPhoneOtp(
       const hourlyCount = await client.phoneOtp.count({
         where: {
           userId,
-          phone: formattedPhone,
+          phone: e164Phone,
           createdAt: { gte: oneHourAgo },
         },
       })
@@ -217,19 +223,34 @@ export async function sendPhoneOtp(
     }
   }
 
-  // 3. Generate Cryptographic 6-Digit OTP and Hash
-  const plainOtp = Math.floor(100000 + Math.random() * 900000).toString()
+  // 3. Generate Cryptographic 6-Digit OTP and Hash (secure)
+  const plainOtp = crypto.randomInt(100000, 1000000).toString()
   const hashed = hashOtp(plainOtp)
 
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
   const resendCooldown = new Date(Date.now() + 60 * 1000) // 60 seconds cooldown
 
-  // 4. Save OTP Record in Database FIRST so verification is always enabled
+  // 4. Dispatch Real Termii SMS Message first and only persist OTP if delivery succeeds
+  const smsBody = `BankSpace Security: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
+  const termiiResult = await dispatchTermiiSms(e164Phone, smsBody)
+
+  const maskedPhone = e164Phone.length > 6 ? e164Phone.slice(0, 3) + "***" + e164Phone.slice(-4) : "***"
+
+  if (!termiiResult.success) {
+    console.error(`[BankSpace SMS Gateway Error]: Failed to deliver OTP to ${e164Phone}. ${String(termiiResult.error || "Unknown error")}`)
+    return {
+      success: false,
+      message: `Failed to send OTP SMS to ${maskedPhone}. Please try again later.`,
+      cooldownSeconds: 0,
+    }
+  }
+
+  // 5. Persist OTP Record in Database after successful delivery
   if (!isFallback && client.phoneOtp && typeof client.phoneOtp.create === "function") {
     await client.phoneOtp.create({
       data: {
         userId,
-        phone: formattedPhone,
+        phone: e164Phone,
         otpHash: hashed,
         attempts: 0,
         maxAttempts: 3,
@@ -239,27 +260,11 @@ export async function sendPhoneOtp(
     })
   }
 
-  // 5. Dispatch Real Termii SMS Message
-  const smsBody = `BankSpace Security: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
-  const termiiResult = await dispatchTermiiSms(formattedPhone, smsBody)
-
-  const maskedPhone = formattedPhone.length > 6 ? formattedPhone.slice(0, 3) + "***" + formattedPhone.slice(-4) : "***"
-
-  if (termiiResult.success) {
-    console.log(`[BankSpace SMS Gateway]: Real Termii SMS OTP delivered to ${formattedPhone} (Message ID: ${termiiResult.messageId})`)
-    return {
-      success: true,
-      message: `OTP sent successfully to ${maskedPhone} via Termii SMS. Expires in 10 minutes.`,
-      cooldownSeconds: 60,
-    }
-  }
-
-  // Log fallback code for testing if Termii SMS key is unverified or failing
-  console.warn(`[BankSpace SMS Gateway Notice]: OTP for ${formattedPhone} generated (${plainOtp}). Termii response: ${termiiResult.error}`)
+  console.log(`[BankSpace SMS Gateway]: Real Termii SMS OTP delivered to ${e164Phone} (Message ID: ${termiiResult.messageId})`)
 
   return {
     success: true,
-    message: `Verification code generated for ${maskedPhone}. Please enter the 6-digit OTP code to continue.`,
+    message: `OTP sent successfully to ${maskedPhone} via Termii SMS. Expires in 10 minutes.`,
     cooldownSeconds: 60,
   }
 }
@@ -280,7 +285,9 @@ export async function verifyPhoneOtp(
 
   const cleanOtp = inputOtp.trim()
   const formattedPhone = rawPhone.trim()
-  const normalizedAccountNum = normalizePhoneNumberToAccountNumber(formattedPhone, userId)
+  const e164Phone = formatToE164(formattedPhone)
+  if (!e164Phone) throw new Error("Invalid phone number provided.")
+  const normalizedAccountNum = normalizePhoneNumberToAccountNumber(e164Phone, userId)
 
   const { client, isFallback } = getPrismaClient()
 
@@ -293,7 +300,7 @@ export async function verifyPhoneOtp(
   }
 
   const activeOtpRecord = await client.phoneOtp.findFirst({
-    where: { userId, phone: formattedPhone },
+    where: { userId, phone: e164Phone },
     orderBy: { createdAt: "desc" },
   })
 
@@ -336,7 +343,7 @@ export async function verifyPhoneOtp(
     await client.user.update({
       where: { id: userId },
       data: {
-        phone: formattedPhone,
+        phone: e164Phone,
         phoneVerified: true,
         kycState: "PHONE_VERIFIED",
       },
