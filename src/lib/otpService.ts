@@ -50,7 +50,8 @@ export function formatToE164(phone: string): string {
 }
 
 /**
- * Dispatches real SMS message via Twilio REST API
+ * Dispatches real SMS message through the active provider.
+ * Prefer Termii and fall back to Twilio only if Termii credentials are absent.
  */
 export async function dispatchTwilioSms(
   toPhone: string,
@@ -75,26 +76,29 @@ export async function dispatchTwilioSms(
           api_key: termiiApiKey,
           to: termiiPhone,
           from: termiiSenderId,
-          sms: messageBody,
+          message: messageBody,
           type: "plain",
           channel: "generic",
         }),
       })
 
       const data = await res.json().catch(() => ({}))
+      const responseText = String(data?.message || data?.response || data?.status || "")
       const success =
         res.ok &&
         (data?.code === 200 ||
           data?.code === "200" ||
           data?.status === "success" ||
-          String(data?.message || "").toLowerCase().includes("success"))
+          data?.status === "SUCCESS" ||
+          responseText.toLowerCase().includes("success") ||
+          responseText.toLowerCase().includes("sent"))
 
       if (success) {
         console.log(`[Termii SMS Gateway]: Dispatched SMS to ${e164Phone}. Response: ${JSON.stringify(data)}`)
         return { success: true, sid: data?.message || data?.code || "termii-sms" }
       }
 
-      const errorMsg = data?.message || data?.error || "Termii SMS delivery failed."
+      const errorMsg = data?.message || data?.error || data?.response || "Termii SMS delivery failed."
       console.error(`[Termii SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${errorMsg}`)
       return { success: false, error: errorMsg }
     } catch (err: any) {
