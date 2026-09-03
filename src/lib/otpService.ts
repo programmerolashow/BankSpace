@@ -56,12 +56,58 @@ export async function dispatchTwilioSms(
   toPhone: string,
   messageBody: string
 ): Promise<{ success: boolean; sid?: string; error?: string }> {
+  const e164Phone = formatToE164(toPhone)
+
+  const termiiApiKey = process.env.TERMII_API_KEY
+  const termiiSenderId = process.env.TERMII_SENDER_ID
+  const termiiBaseUrl = process.env.TERMII_BASE_URL || "https://api.ng.termii.com/api/sms/send"
+
+  if (termiiApiKey && termiiSenderId) {
+    try {
+      const termiiPhone = e164Phone.replace("+", "")
+      const res = await fetch(termiiBaseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          api_key: termiiApiKey,
+          to: termiiPhone,
+          from: termiiSenderId,
+          sms: messageBody,
+          type: "plain",
+          channel: "generic",
+        }),
+      })
+
+      const data = await res.json().catch(() => ({}))
+      const success =
+        res.ok &&
+        (data?.code === 200 ||
+          data?.code === "200" ||
+          data?.status === "success" ||
+          String(data?.message || "").toLowerCase().includes("success"))
+
+      if (success) {
+        console.log(`[Termii SMS Gateway]: Dispatched SMS to ${e164Phone}. Response: ${JSON.stringify(data)}`)
+        return { success: true, sid: data?.message || data?.code || "termii-sms" }
+      }
+
+      const errorMsg = data?.message || data?.error || "Termii SMS delivery failed."
+      console.error(`[Termii SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${errorMsg}`)
+      return { success: false, error: errorMsg }
+    } catch (err: any) {
+      const errorMsg = err?.message || "Network exception during Termii SMS dispatch."
+      console.error(`[Termii SMS Gateway Exception]: ${errorMsg}`)
+      return { success: false, error: errorMsg }
+    }
+  }
+
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken = process.env.TWILIO_AUTH_TOKEN
   const fromPhone = process.env.TWILIO_PHONE_NUMBER
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
-
-  const e164Phone = formatToE164(toPhone)
 
   if (!accountSid || !authToken || (!fromPhone && !messagingServiceSid)) {
     console.warn(
@@ -69,7 +115,7 @@ export async function dispatchTwilioSms(
     )
     return {
       success: false,
-      error: "Twilio credentials not configured in environment variables.",
+      error: "SMS provider credentials are not configured. Please add Termii credentials or configure Twilio.",
     }
   }
 
