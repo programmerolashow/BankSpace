@@ -7,6 +7,21 @@ function hashOtp(otp: string): string {
   return crypto.createHash("sha256").update(otp).digest("hex")
 }
 
+function getTwilioFriendlyErrorMessage(data: any): string {
+  const rawMessage = data?.message || data?.error_message || data?.details || "Twilio API request failed."
+  const lower = String(rawMessage).toLowerCase()
+
+  if (lower.includes("trial account") || lower.includes("not available on a trial account") || lower.includes("upgrade your account to gain access")) {
+    return "Phone verification is unavailable because the Twilio account is in trial mode. Upgrade the Twilio account or verify the destination phone number before sending OTPs."
+  }
+
+  if (lower.includes("not a valid phone number") || lower.includes("invalid phone number")) {
+    return "The phone number entered is not valid for SMS verification. Please check the number and try again."
+  }
+
+  return rawMessage
+}
+
 /**
  * Normalizes a Nigerian or international phone number to E.164 standard.
  * e.g., "08012345678" -> "+2348012345678"
@@ -91,8 +106,8 @@ export async function dispatchTwilioSms(
       )
       return { success: true, sid: data.sid }
     } else {
-      const errorMsg = data?.message || data?.error_message || "Twilio API dispatch failed."
-      console.error(`[Twilio SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${errorMsg}`)
+      const errorMsg = getTwilioFriendlyErrorMessage(data)
+      console.error(`[Twilio SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${data?.message || data?.error_message || "Twilio API dispatch failed."}`)
       return { success: false, error: errorMsg }
     }
   } catch (err: any) {
