@@ -79,55 +79,83 @@ export async function dispatchTermiiSms(
   const channels = ["generic", "dnd"]
   let lastErrorMessage = "Termii SMS delivery failed."
 
-  // Try combination of Sender IDs and Channels
+  // Validate phone looks like a Nigerian number (234XXXXXXXXXX) or similar
+  if (!/^[0-9]{10,15}$/.test(termiiPhone)) {
+    return { success: false, error: `Invalid destination phone number: ${termiiPhone}` }
+  }
+
+  // Try common payload variants used across Termii API versions
+  const payloadVariants = [
+    { bodyField: "sms", authIn: "body" },
+    { bodyField: "message", authIn: "body" },
+    { bodyField: "sms", authIn: "header" },
+    { bodyField: "message", authIn: "header" },
+  ]
+  // Try combination of Sender IDs, Channels and payload variants
   for (const senderId of senderIds) {
     for (const channel of channels) {
-      try {
-        const payload = {
-          api_key: apiKey.trim(),
-          to: termiiPhone,
-          from: senderId,
-          sms: messageBody,
-          type: "plain",
-          channel: channel,
+      for (const variant of payloadVariants) {
+        try {
+          const payload: any = {
+            to: termiiPhone,
+            from: senderId,
+            type: "plain",
+            channel,
+          }
+
+          // set message field name depending on variant
+          payload[variant.bodyField] = messageBody
+
+          // include api key in body if variant says so
+          const headers: any = { "Content-Type": "application/json", Accept: "application/json" }
+          if (variant.authIn === "body") {
+            payload.api_key = apiKey?.trim()
+          } else if (variant.authIn === "header") {
+            if (apiKey && apiKey.trim()) {
+              headers.Authorization = `Bearer ${apiKey.trim()}`
+            }
+          }
+
+          const res = await fetch(termiiBaseUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+          })
+
+          const text = await res.text().catch(() => "")
+          let data: any = {}
+          try {
+            data = text ? JSON.parse(text) : {}
+          } catch {
+            data = { raw: text }
+          }
+
+          const responseText = String(data?.message || data?.response || data?.status || data?.raw || "")
+          const isSuccess =
+            res.ok &&
+            (data?.message_id ||
+              data?.code === "ok" ||
+              data?.code === 200 ||
+              data?.status === "success" ||
+              responseText.toLowerCase().includes("success") ||
+              responseText.toLowerCase().includes("sent") ||
+              responseText.toLowerCase().includes("ok"))
+
+          if (isSuccess) {
+            console.log(
+              `[Termii SMS Gateway]: SMS dispatched to ${termiiPhone} using senderId '${senderId}' (Channel: ${channel}, variant: ${variant.bodyField}/${variant.authIn}). Message ID: ${data?.message_id || "sent"}`
+            )
+            return { success: true, messageId: data?.message_id || "sent" }
+          }
+
+          // capture error message from provider for diagnostics (do not log secrets)
+          if (data?.message) lastErrorMessage = data.message
+          else if (data?.error) lastErrorMessage = data.error
+
+          console.warn(`[Termii Notice]: attempt variant=${variant.bodyField}/${variant.authIn} responded status=${res.status} body=${responseText}`)
+        } catch (err: any) {
+          lastErrorMessage = err?.message || "Termii API network exception."
         }
-
-        const res = await fetch(termiiBaseUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(payload),
-        })
-
-        const data = await res.json().catch(() => ({}))
-        const responseText = String(data?.message || data?.response || data?.status || "")
-        const isSuccess =
-          res.ok &&
-          (data?.message_id ||
-            data?.code === "ok" ||
-            data?.code === 200 ||
-            data?.status === "success" ||
-            responseText.toLowerCase().includes("success") ||
-            responseText.toLowerCase().includes("sent") ||
-            responseText.toLowerCase().includes("ok"))
-
-        if (isSuccess) {
-          console.log(
-            `[Termii SMS Gateway]: SMS successfully dispatched to ${termiiPhone} using senderId '${senderId}' (Channel: ${channel}). Message ID: ${data?.message_id || "sent"}`
-          )
-          return { success: true, messageId: data?.message_id || "sent" }
-        }
-
-        if (data?.message) {
-          lastErrorMessage = data.message
-        }
-        console.warn(
-          `[Termii SMS Gateway Notice]: Attempt with senderId '${senderId}' and channel '${channel}' returned: ${JSON.stringify(data)}`
-        )
-      } catch (err: any) {
-        lastErrorMessage = err?.message || "Termii API network exception."
       }
     }
   }
