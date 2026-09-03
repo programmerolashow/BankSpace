@@ -60,47 +60,56 @@ export async function dispatchTwilioSms(
   const e164Phone = formatToE164(toPhone)
 
   const termiiApiKey = process.env.TERMII_API_KEY
-  const termiiSenderId = process.env.TERMII_SENDER_ID
+  const termiiSenderId = process.env.TERMII_SENDER_ID?.trim()
   const termiiBaseUrl = process.env.TERMII_BASE_URL || "https://api.ng.termii.com/api/sms/send"
 
   if (termiiApiKey && termiiSenderId) {
     try {
       const termiiPhone = e164Phone.replace("+", "")
-      const res = await fetch(termiiBaseUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          api_key: termiiApiKey,
-          to: termiiPhone,
-          from: termiiSenderId,
-          message: messageBody,
-          type: "plain",
-          channel: "generic",
-        }),
-      })
+      const sanitizedMessage = String(messageBody || "").replace(/[<>]/g, "").trim()
+      const senderId = termiiSenderId.replace(/[^a-zA-Z0-9]/g, "")
 
-      const data = await res.json().catch(() => ({}))
-      const responseText = String(data?.message || data?.response || data?.status || "")
-      const success =
-        res.ok &&
-        (data?.code === 200 ||
-          data?.code === "200" ||
-          data?.status === "success" ||
-          data?.status === "SUCCESS" ||
-          responseText.toLowerCase().includes("success") ||
-          responseText.toLowerCase().includes("sent"))
+      const payloads = [
+        { api_key: termiiApiKey, to: termiiPhone, from: senderId, message: sanitizedMessage, type: "plain", channel: "generic" },
+        { api_key: termiiApiKey, to: termiiPhone, from: senderId, sms: sanitizedMessage, type: "plain", channel: "generic" },
+        { api_key: termiiApiKey, to: termiiPhone, from: senderId, message: sanitizedMessage },
+        { api_key: termiiApiKey, to: termiiPhone, from: senderId, sms: sanitizedMessage },
+      ]
 
-      if (success) {
-        console.log(`[Termii SMS Gateway]: Dispatched SMS to ${e164Phone}. Response: ${JSON.stringify(data)}`)
-        return { success: true, sid: data?.message || data?.code || "termii-sms" }
+      let lastError = "Termii SMS delivery failed."
+
+      for (const payload of payloads) {
+        const res = await fetch(termiiBaseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+
+        const data = await res.json().catch(() => ({}))
+        const responseText = String(data?.message || data?.response || data?.status || "")
+        const success =
+          res.ok &&
+          (data?.code === 200 ||
+            data?.code === "200" ||
+            data?.status === "success" ||
+            data?.status === "SUCCESS" ||
+            responseText.toLowerCase().includes("success") ||
+            responseText.toLowerCase().includes("sent"))
+
+        if (success) {
+          console.log(`[Termii SMS Gateway]: Dispatched SMS to ${e164Phone}. Response: ${JSON.stringify(data)}`)
+          return { success: true, sid: data?.message || data?.code || "termii-sms" }
+        }
+
+        lastError = data?.message || data?.error || data?.response || "One or more fields failed validation."
+        console.warn(`[Termii SMS Gateway]: validation attempt failed for ${e164Phone}. Payload: ${JSON.stringify(payload)} Response: ${JSON.stringify(data)}`)
       }
 
-      const errorMsg = data?.message || data?.error || data?.response || "Termii SMS delivery failed."
-      console.error(`[Termii SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${errorMsg}`)
-      return { success: false, error: errorMsg }
+      console.error(`[Termii SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${lastError}`)
+      return { success: false, error: lastError }
     } catch (err: any) {
       const errorMsg = err?.message || "Network exception during Termii SMS dispatch."
       console.error(`[Termii SMS Gateway Exception]: ${errorMsg}`)
@@ -241,7 +250,7 @@ export async function sendPhoneOtp(
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
   const resendCooldown = new Date(Date.now() + 60 * 1000)
 
-  const smsBody = `<BankSpace Security>: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
+  const smsBody = `BankSpace Security: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
   const twilioResult = await dispatchTwilioSms(formattedPhone, smsBody)
 
   if (!twilioResult.success) {
