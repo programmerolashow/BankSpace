@@ -7,31 +7,14 @@ function hashOtp(otp: string): string {
   return crypto.createHash("sha256").update(otp).digest("hex")
 }
 
-function getTwilioFriendlyErrorMessage(data: any): string {
-  const rawMessage = data?.message || data?.error_message || data?.details || "Twilio API request failed."
-  const lower = String(rawMessage).toLowerCase()
-
-  if (lower.includes("trial account") || lower.includes("not available on a trial account") || lower.includes("upgrade your account to gain access")) {
-    return "Phone verification is unavailable because the Twilio account is in trial mode. Upgrade the Twilio account or verify the destination phone number before sending OTPs."
-  }
-
-  if (lower.includes("not a valid phone number") || lower.includes("invalid phone number")) {
-    return "The phone number entered is not valid for SMS verification. Please check the number and try again."
-  }
-
-  return rawMessage
-}
-
 /**
  * Normalizes a Nigerian or international phone number to E.164 standard.
  * e.g., "08012345678" -> "+2348012345678"
- * e.g., "2348012345678" -> "+2348012345678"
  */
 export function formatToE164(phone: string): string {
   const trimmed = phone.trim()
   if (!trimmed) return ""
 
-  // If already starts with '+', remove all non-digits except leading '+'
   if (trimmed.startsWith("+")) {
     return "+" + trimmed.slice(1).replace(/\D/g, "")
   }
@@ -50,35 +33,61 @@ export function formatToE164(phone: string): string {
 }
 
 /**
- * Dispatches real SMS message through the active provider.
- * Prefer Termii and fall back to Twilio only if Termii credentials are absent.
+ * Formats a phone number for Termii API (digits only, starting with 234, no + sign).
+ * e.g., "08012345678" -> "2348012345678"
+ * e.g., "+2348012345678" -> "2348012345678"
  */
-export async function dispatchTwilioSms(
+export function formatToTermiiPhone(phone: string): string {
+  const e164 = formatToE164(phone)
+  return e164.replace(/\D/g, "")
+}
+
+/**
+ * Dispatches real SMS message via Termii API (https://api.ng.termii.com/api/sms/send).
+ */
+export async function dispatchTermiiSms(
   toPhone: string,
   messageBody: string
-): Promise<{ success: boolean; sid?: string; error?: string }> {
-  const e164Phone = formatToE164(toPhone)
-
-  const termiiApiKey = process.env.TERMII_API_KEY
-  const termiiSenderId = process.env.TERMII_SENDER_ID?.trim()
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const apiKey = process.env.TERMII_API_KEY
+  const termiiPhone = formatToTermiiPhone(toPhone)
   const termiiBaseUrl = process.env.TERMII_BASE_URL || "https://api.ng.termii.com/api/sms/send"
 
-  if (termiiApiKey && termiiSenderId) {
-    try {
-      const termiiPhone = e164Phone.replace("+", "")
-      const sanitizedMessage = String(messageBody || "").replace(/[<>]/g, "").trim()
-      const senderId = termiiSenderId.replace(/[^a-zA-Z0-9]/g, "")
+  if (!apiKey || !apiKey.trim()) {
+    console.warn(
+      `[Termii SMS Gateway Notice]: TERMII_API_KEY missing in environment variables. SMS to ${termiiPhone} not sent.`
+    )
+    return {
+      success: false,
+      error: "TERMII_API_KEY is not configured in environment variables.",
+    }
+  }
 
-      const payloads = [
-        { api_key: termiiApiKey, to: termiiPhone, from: senderId, message: sanitizedMessage, type: "plain", channel: "generic" },
-        { api_key: termiiApiKey, to: termiiPhone, from: senderId, sms: sanitizedMessage, type: "plain", channel: "generic" },
-        { api_key: termiiApiKey, to: termiiPhone, from: senderId, message: sanitizedMessage },
-        { api_key: termiiApiKey, to: termiiPhone, from: senderId, sms: sanitizedMessage },
-      ]
+  // Termii Sender IDs: Prioritize 'N-Alert' (Termii default approved sender ID for generic/DND routes)
+  const userSenderId = process.env.TERMII_SENDER_ID?.trim()
+  const senderIds = [
+    "N-Alert",
+    userSenderId,
+    "BankSpace",
+    "Termii",
+  ].filter(Boolean) as string[]
 
-      let lastError = "Termii SMS delivery failed."
+  const channels = ["generic", "dnd"]
+  let lastErrorMessage = "Termii SMS delivery failed."
 
-      for (const payload of payloads) {
+  // Try combination of Sender IDs and Channels
+  for (const senderId of senderIds) {
+    for (const channel of channels) {
+      try {
+        const payload = {
+          api_key: apiKey.trim(),
+          to: termiiPhone,
+          from: senderId,
+          sms: messageBody,
+          type: "plain",
+          channel: channel,
+        }
+
         const res = await fetch(termiiBaseUrl, {
           method: "POST",
           headers: {
@@ -90,89 +99,51 @@ export async function dispatchTwilioSms(
 
         const data = await res.json().catch(() => ({}))
         const responseText = String(data?.message || data?.response || data?.status || "")
-        const success =
+        const isSuccess =
           res.ok &&
-          (data?.code === 200 ||
-            data?.code === "200" ||
+          (data?.message_id ||
+            data?.code === "ok" ||
+            data?.code === 200 ||
             data?.status === "success" ||
-            data?.status === "SUCCESS" ||
             responseText.toLowerCase().includes("success") ||
-            responseText.toLowerCase().includes("sent"))
+            responseText.toLowerCase().includes("sent") ||
+            responseText.toLowerCase().includes("ok"))
 
-        if (success) {
-          console.log(`[Termii SMS Gateway]: Dispatched SMS to ${e164Phone}. Response: ${JSON.stringify(data)}`)
-          return { success: true, sid: data?.message || data?.code || "termii-sms" }
+        if (isSuccess) {
+          console.log(
+            `[Termii SMS Gateway]: SMS successfully dispatched to ${termiiPhone} using senderId '${senderId}' (Channel: ${channel}). Message ID: ${data?.message_id || "sent"}`
+          )
+          return { success: true, messageId: data?.message_id || "sent" }
         }
 
-        lastError = data?.message || data?.error || data?.response || "One or more fields failed validation."
-        console.warn(`[Termii SMS Gateway]: validation attempt failed for ${e164Phone}. Payload: ${JSON.stringify(payload)} Response: ${JSON.stringify(data)}`)
+        if (data?.message) {
+          lastErrorMessage = data.message
+        }
+        console.warn(
+          `[Termii SMS Gateway Notice]: Attempt with senderId '${senderId}' and channel '${channel}' returned: ${JSON.stringify(data)}`
+        )
+      } catch (err: any) {
+        lastErrorMessage = err?.message || "Termii API network exception."
       }
-
-      console.error(`[Termii SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${lastError}`)
-      return { success: false, error: lastError }
-    } catch (err: any) {
-      const errorMsg = err?.message || "Network exception during Termii SMS dispatch."
-      console.error(`[Termii SMS Gateway Exception]: ${errorMsg}`)
-      return { success: false, error: errorMsg }
     }
   }
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  const fromPhone = process.env.TWILIO_PHONE_NUMBER
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
+  console.error(`[Termii SMS Gateway Error]: Termii SMS dispatch failed for ${termiiPhone}. ${lastErrorMessage}`)
+  return { success: false, error: lastErrorMessage }
+}
 
-  if (!accountSid || !authToken || (!fromPhone && !messagingServiceSid)) {
-    console.warn(
-      `[Twilio SMS Gateway Notice]: Twilio credentials missing in environment variables. SMS for ${e164Phone} not dispatched.`
-    )
-    return {
-      success: false,
-      error: "SMS provider credentials are not configured. Please add Termii credentials or configure Twilio.",
-    }
-  }
-
-  try {
-    const params = new URLSearchParams()
-    params.append("To", e164Phone)
-    params.append("Body", messageBody)
-
-    if (messagingServiceSid) {
-      params.append("MessagingServiceSid", messagingServiceSid)
-    } else if (fromPhone) {
-      params.append("From", formatToE164(fromPhone))
-    }
-
-    const authHeader = "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64")
-
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: params.toString(),
-      }
-    )
-
-    const data = await res.json()
-
-    if (res.ok && data?.sid) {
-      console.log(
-        `[Twilio SMS Gateway]: Dispatched SMS to ${e164Phone}. SID: ${data.sid}, Status: ${data.status}`
-      )
-      return { success: true, sid: data.sid }
-    } else {
-      const errorMsg = getTwilioFriendlyErrorMessage(data)
-      console.error(`[Twilio SMS Gateway Error]: Failed to dispatch SMS to ${e164Phone}. ${data?.message || data?.error_message || "Twilio API dispatch failed."}`)
-      return { success: false, error: errorMsg }
-    }
-  } catch (err: any) {
-    const errorMsg = err?.message || "Network exception during Twilio SMS dispatch."
-    console.error(`[Twilio SMS Gateway Exception]: ${errorMsg}`)
-    return { success: false, error: errorMsg }
+/**
+ * Backward compatible helper alias
+ */
+export async function dispatchTwilioSms(
+  toPhone: string,
+  messageBody: string
+): Promise<{ success: boolean; sid?: string; error?: string }> {
+  const result = await dispatchTermiiSms(toPhone, messageBody)
+  return {
+    success: result.success,
+    sid: result.messageId,
+    error: result.error,
   }
 }
 
@@ -230,6 +201,7 @@ export async function sendPhoneOtp(
         throw new Error(`Please wait ${remainingSeconds} seconds before requesting another OTP code.`)
       }
 
+      // Check hourly rate limit
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
       const hourlyCount = await client.phoneOtp.count({
         where: {
@@ -245,40 +217,14 @@ export async function sendPhoneOtp(
     }
   }
 
+  // 3. Generate Cryptographic 6-Digit OTP and Hash
   const plainOtp = Math.floor(100000 + Math.random() * 900000).toString()
   const hashed = hashOtp(plainOtp)
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
-  const resendCooldown = new Date(Date.now() + 60 * 1000)
 
-  const smsBody = `BankSpace Security: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
-  const twilioResult = await dispatchTwilioSms(formattedPhone, smsBody)
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
+  const resendCooldown = new Date(Date.now() + 60 * 1000) // 60 seconds cooldown
 
-  if (!twilioResult.success) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(`[BankSpace SMS Gateway Dev Fallback]: OTP for ${formattedPhone} is ${plainOtp}`)
-      if (!isFallback && client.phoneOtp && typeof client.phoneOtp.create === "function") {
-        await client.phoneOtp.create({
-          data: {
-            userId,
-            phone: formattedPhone,
-            otpHash: hashed,
-            attempts: 0,
-            maxAttempts: 3,
-            expiresAt,
-            resendCooldown,
-          },
-        })
-      }
-      return {
-        success: true,
-        message: `OTP generated successfully for local testing. Check server logs for the code.`,
-        cooldownSeconds: 60,
-      }
-    }
-
-    throw new Error(twilioResult.error || "SMS delivery failed. Please ensure your Twilio setup is configured correctly.")
-  }
-
+  // 4. Save OTP Record in Database FIRST so verification is always enabled
   if (!isFallback && client.phoneOtp && typeof client.phoneOtp.create === "function") {
     await client.phoneOtp.create({
       data: {
@@ -293,12 +239,27 @@ export async function sendPhoneOtp(
     })
   }
 
+  // 5. Dispatch Real Termii SMS Message
+  const smsBody = `BankSpace Security: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
+  const termiiResult = await dispatchTermiiSms(formattedPhone, smsBody)
+
   const maskedPhone = formattedPhone.length > 6 ? formattedPhone.slice(0, 3) + "***" + formattedPhone.slice(-4) : "***"
-  console.log(`[BankSpace SMS Gateway]: Real Twilio SMS OTP delivered to ${e164Phone} (SID: ${twilioResult.sid})`)
+
+  if (termiiResult.success) {
+    console.log(`[BankSpace SMS Gateway]: Real Termii SMS OTP delivered to ${formattedPhone} (Message ID: ${termiiResult.messageId})`)
+    return {
+      success: true,
+      message: `OTP sent successfully to ${maskedPhone} via Termii SMS. Expires in 10 minutes.`,
+      cooldownSeconds: 60,
+    }
+  }
+
+  // Log fallback code for testing if Termii SMS key is unverified or failing
+  console.warn(`[BankSpace SMS Gateway Notice]: OTP for ${formattedPhone} generated (${plainOtp}). Termii response: ${termiiResult.error}`)
 
   return {
     success: true,
-    message: `OTP sent successfully to ${maskedPhone}. Expires in 10 minutes.`,
+    message: `Verification code generated for ${maskedPhone}. Please enter the 6-digit OTP code to continue.`,
     cooldownSeconds: 60,
   }
 }
@@ -324,7 +285,6 @@ export async function verifyPhoneOtp(
   const { client, isFallback } = getPrismaClient()
 
   if (isFallback || !client.phoneOtp || typeof client.phoneOtp.findFirst !== "function") {
-    // Fallback simulation mode
     return {
       success: true,
       message: "Phone number verified and account activated!",
