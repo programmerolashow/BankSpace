@@ -265,6 +265,35 @@ export default function CompleteProfilePage() {
     }
   }
 
+  // Final completion check before allowing user to leave on Step 7
+  const handleFinish = () => {
+    setError("")
+    // Required: Step1 (firstName,lastName,dob), Step2 phoneVerified, Step3 bvn/nin, Step4 address/state/lga
+    if (!firstName.trim() || !lastName.trim() || !dob) {
+      setError("Incomplete profile: please complete Personal Details to proceed.")
+      return
+    }
+    if (!phoneVerified) {
+      setError("Incomplete profile: please verify your phone to proceed.")
+      return
+    }
+    if (!bvn.trim() || bvn.trim().length !== 11) {
+      setError("Incomplete profile: please complete BVN information to proceed.")
+      return
+    }
+    if (!nin.trim() || nin.trim().length !== 11) {
+      setError("Incomplete profile: please complete NIN information to proceed.")
+      return
+    }
+    if (!address.trim() || !state.trim() || !lga.trim()) {
+      setError("Incomplete profile: please complete your address to proceed.")
+      return
+    }
+
+    // All checks passed - navigate to dashboard
+    router.push("/dashboard")
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-2xl space-y-6">
@@ -662,7 +691,7 @@ export default function CompleteProfilePage() {
 
               <button
                 type="button"
-                onClick={() => router.push("/dashboard")}
+                onClick={handleFinish}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#3ad7a9] px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95"
               >
                 <span>Go to BankSpace Dashboard</span>
@@ -671,6 +700,28 @@ export default function CompleteProfilePage() {
             </div>
           )}
         </div>
+      </div>
+      {/* Back and Skip fixed buttons */}
+      <div className="pointer-events-none">
+        {step > 1 && (
+          <button
+            type="button"
+            onClick={() => setStep((s) => Math.max(1, s - 1))}
+            className="pointer-events-auto fixed bottom-6 left-6 z-50 rounded-2xl border-2 border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-900 shadow-sm"
+          >
+            <ArrowLeft className="inline-block mr-2 h-4 w-4" /> Back
+          </button>
+        )}
+
+        {step < 7 && (
+          <button
+            type="button"
+            onClick={() => setStep((s) => Math.min(7, s + 1))}
+            className="pointer-events-auto fixed bottom-6 right-6 z-50 rounded-2xl border-2 border-slate-300 bg-[#f4f4f4] px-4 py-2 text-sm font-bold text-slate-900 shadow-sm"
+          >
+            Skip <ArrowRight className="inline-block ml-2 h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   )
