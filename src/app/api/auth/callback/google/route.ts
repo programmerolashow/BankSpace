@@ -66,8 +66,9 @@ export async function GET(request: Request) {
       throw new Error("Google user profile did not include email address or provider ID")
     }
 
-    // Determine user display name
+    // Determine user display name & extract phone from Google profile
     const displayName = profile.name || profile.given_name || "Google User"
+    const googlePhone = profile.phone_number || profile.phoneNumber || profile.phone || null
 
     // 5. Look up or create application User and Account in PostgreSQL
     const { token, user } = await findOrCreateOAuthAccount({
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
       providerAccountId: profile.sub,
       email: profile.email,
       name: displayName,
+      phone: googlePhone,
       avatarUrl: profile.picture,
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,

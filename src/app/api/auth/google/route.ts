@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   googleAuthUrl.searchParams.set("client_id", clientId)
   googleAuthUrl.searchParams.set("redirect_uri", redirectUri)
   googleAuthUrl.searchParams.set("response_type", "code")
-  googleAuthUrl.searchParams.set("scope", "openid email profile")
+  googleAuthUrl.searchParams.set("scope", "openid email profile phone")
   googleAuthUrl.searchParams.set("state", state)
   googleAuthUrl.searchParams.set("prompt", "select_account")
 
