@@ -193,8 +193,6 @@ export async function POST(request: Request) {
             country: country.trim(),
             postalCode: postalCode?.trim() || null,
             avatarUrl: avatarUrl?.trim() || user.avatarUrl || null,
-            phoneVerified: true,
-            kycState: finalKycStatus === "VERIFIED" ? "ACTIVE" : "PHONE_VERIFIED",
             isVerified: finalKycStatus === "VERIFIED",
             kycStatus: finalKycStatus,
             kycSubmittedAt: new Date(),

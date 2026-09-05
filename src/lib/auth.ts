@@ -23,7 +23,6 @@ export type OAuthProfilePayload = {
   providerAccountId: string
   email: string
   name?: string
-  phone?: string | null
   avatarUrl?: string
   accessToken?: string
   refreshToken?: string
@@ -367,19 +366,9 @@ export async function findOrCreateOAuthAccount(payload: OAuthProfilePayload) {
       data: {
         name: payload.name || (payload.provider === "google" ? "Google User" : "Apple User"),
         email: normalizedEmail,
-        phone: payload.phone || null,
-        phoneVerified: Boolean(payload.phone),
         isVerified: true,
         avatarUrl: payload.avatarUrl || null,
         role: "USER",
-      },
-    })
-  } else if (payload.phone && !targetUser.phone) {
-    targetUser = await client.user.update({
-      where: { id: targetUser.id },
-      data: {
-        phone: payload.phone,
-        phoneVerified: true,
       },
     })
   }
