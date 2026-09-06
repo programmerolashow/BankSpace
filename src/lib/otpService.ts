@@ -37,86 +37,73 @@ export function formatToE164(phone: string): string {
 }
 
 /**
- * Formats a phone number for Termii API (digits only, starting with 234, no + sign).
- * e.g., "08012345678" -> "2348012345678"
- * e.g., "+2348012345678" -> "2348012345678"
+ * Formats a phone number digits only (e.g. "2348012345678").
  */
-export function formatToTermiiPhone(phone: string): string {
+export function formatToDigitsPhone(phone: string): string {
   const e164 = formatToE164(phone)
   return e164.replace(/\D/g, "")
 }
 
 /**
- * Dispatches real SMS message via Termii API (https://api.ng.termii.com/api/sms/send).
+ * Dispatches real SMS message via SendExa Gateway API.
  */
-export async function dispatchTermiiSms(
+export async function dispatchSendExaSms(
   toPhone: string,
   messageBody: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const apiKey = process.env.TERMII_API_KEY
-  const termiiPhone = formatToTermiiPhone(toPhone)
-  const termiiBaseUrl = process.env.TERMII_BASE_URL || "https://api.ng.termii.com/api/sms/send"
+  const apiKey = process.env.SENDEXA_API_KEY || process.env.TERMII_API_KEY
+  const e164Phone = formatToE164(toPhone)
+  const digitsPhone = formatToDigitsPhone(toPhone)
+  const sendExaBaseUrl = process.env.SENDEXA_BASE_URL || "https://api.sendexa.com/v1/sms/send"
 
   if (!apiKey || !apiKey.trim()) {
     console.warn(
-      `[Termii SMS Gateway Notice]: TERMII_API_KEY missing in environment variables. SMS to ${termiiPhone} not sent.`
+      `[SendExa SMS Gateway Notice]: SENDEXA_API_KEY missing in environment variables. SMS to ${e164Phone} not sent.`
     )
     return {
       success: false,
-      error: "TERMII_API_KEY is not configured in environment variables.",
+      error: "SENDEXA_API_KEY is not configured in environment variables.",
     }
   }
 
-  // Termii Sender IDs: Prioritize 'N-Alert' (Termii default approved sender ID for generic/DND routes)
-  const userSenderId = process.env.TERMII_SENDER_ID?.trim()
-  const senderIds = [
-    "N-Alert",
-    userSenderId,
-    "BankSpace",
-    "Termii",
-  ].filter(Boolean) as string[]
+  // Sender IDs: User explicitly specified "Letcol" as Sender ID
+  const userSenderId = process.env.SENDEXA_SENDER_ID?.trim() || process.env.TERMII_SENDER_ID?.trim() || "Letcol"
+  const senderIds = [userSenderId, "Letcol", "BankSpace"].filter(Boolean) as string[]
 
-  const channels = ["generic", "dnd"]
-  let lastErrorMessage = "Termii SMS delivery failed."
-
-  // Validate phone looks like a Nigerian number (234XXXXXXXXXX) or similar
-  if (!/^[0-9]{10,15}$/.test(termiiPhone)) {
-    return { success: false, error: `Invalid destination phone number: ${termiiPhone}` }
-  }
-
-  // Try common payload variants used across Termii API versions
+  const phoneFormats = [e164Phone, digitsPhone]
   const payloadVariants = [
-    { bodyField: "sms", authIn: "body" },
-    { bodyField: "message", authIn: "body" },
-    { bodyField: "sms", authIn: "header" },
-    { bodyField: "message", authIn: "header" },
+    { messageKey: "message", authType: "header" },
+    { messageKey: "sms", authType: "header" },
+    { messageKey: "message", authType: "body" },
+    { messageKey: "sms", authType: "body" },
   ]
-  // Try combination of Sender IDs, Channels and payload variants
-  for (const senderId of senderIds) {
-    for (const channel of channels) {
+
+  let lastErrorMessage = "SendExa SMS delivery failed."
+
+  for (const phone of phoneFormats) {
+    for (const senderId of senderIds) {
       for (const variant of payloadVariants) {
         try {
           const payload: any = {
-            to: termiiPhone,
+            to: phone,
             from: senderId,
-            type: "plain",
-            channel,
+          }
+          payload[variant.messageKey] = messageBody
+
+          const headers: any = {
+            "Content-Type": "application/json",
+            Accept: "application/json",
           }
 
-          // set message field name depending on variant
-          payload[variant.bodyField] = messageBody
-
-          // include api key in body if variant says so
-          const headers: any = { "Content-Type": "application/json", Accept: "application/json" }
-          if (variant.authIn === "body") {
-            payload.api_key = apiKey?.trim()
-          } else if (variant.authIn === "header") {
-            if (apiKey && apiKey.trim()) {
-              headers.Authorization = `Bearer ${apiKey.trim()}`
-            }
+          if (variant.authType === "header") {
+            headers.Authorization = `Bearer ${apiKey.trim()}`
+            headers["X-API-KEY"] = apiKey.trim()
+          } else {
+            payload.api_key = apiKey.trim()
+            payload.apiKey = apiKey.trim()
           }
 
-          const res = await fetch(termiiBaseUrl, {
+          const res = await fetch(sendExaBaseUrl, {
             method: "POST",
             headers,
             body: JSON.stringify(payload),
@@ -134,6 +121,8 @@ export async function dispatchTermiiSms(
           const isSuccess =
             res.ok &&
             (data?.message_id ||
+              data?.id ||
+              data?.sid ||
               data?.code === "ok" ||
               data?.code === 200 ||
               data?.status === "success" ||
@@ -143,35 +132,41 @@ export async function dispatchTermiiSms(
 
           if (isSuccess) {
             console.log(
-              `[Termii SMS Gateway]: SMS dispatched to ${termiiPhone} using senderId '${senderId}' (Channel: ${channel}, variant: ${variant.bodyField}/${variant.authIn}). Message ID: ${data?.message_id || "sent"}`
+              `[SendExa SMS Gateway]: SMS successfully dispatched to ${phone} using senderId '${senderId}'. Message ID: ${data?.message_id || data?.id || data?.sid || "sent"}`
             )
-            return { success: true, messageId: data?.message_id || "sent" }
+            return { success: true, messageId: data?.message_id || data?.id || data?.sid || "sent" }
           }
 
-          // capture error message from provider for diagnostics (do not log secrets)
           if (data?.message) lastErrorMessage = data.message
           else if (data?.error) lastErrorMessage = data.error
 
-          console.warn(`[Termii Notice]: attempt variant=${variant.bodyField}/${variant.authIn} responded status=${res.status} body=${responseText}`)
+          console.warn(`[SendExa Notice]: Attempt to ${phone} (sender: ${senderId}) responded status=${res.status} body=${responseText}`)
         } catch (err: any) {
-          lastErrorMessage = err?.message || "Termii API network exception."
+          lastErrorMessage = err?.message || "SendExa API network exception."
         }
       }
     }
   }
 
-  console.error(`[Termii SMS Gateway Error]: Termii SMS dispatch failed for ${termiiPhone}. ${lastErrorMessage}`)
+  console.error(`[SendExa SMS Gateway Error]: SendExa SMS dispatch failed for ${e164Phone}. ${lastErrorMessage}`)
   return { success: false, error: lastErrorMessage }
 }
 
 /**
- * Backward compatible helper alias
+ * Legacy aliases for backward compatibility
  */
+export async function dispatchTermiiSms(
+  toPhone: string,
+  messageBody: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  return dispatchSendExaSms(toPhone, messageBody)
+}
+
 export async function dispatchTwilioSms(
   toPhone: string,
   messageBody: string
 ): Promise<{ success: boolean; sid?: string; error?: string }> {
-  const result = await dispatchTermiiSms(toPhone, messageBody)
+  const result = await dispatchSendExaSms(toPhone, messageBody)
   return {
     success: result.success,
     sid: result.messageId,
@@ -258,14 +253,14 @@ export async function sendPhoneOtp(
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
   const resendCooldown = new Date(Date.now() + 60 * 1000) // 60 seconds cooldown
 
-  // 4. Dispatch Real Termii SMS Message first and only persist OTP if delivery succeeds
+  // 4. Dispatch Real SendExa SMS Message first and only persist OTP if delivery succeeds
   const smsBody = `BankSpace Security: Your verification code is ${plainOtp}. It expires in 10 minutes. Do not share this code with anyone.`
-  const termiiResult = await dispatchTermiiSms(e164Phone, smsBody)
+  const sendExaResult = await dispatchSendExaSms(e164Phone, smsBody)
 
   const maskedPhone = e164Phone.length > 6 ? e164Phone.slice(0, 3) + "***" + e164Phone.slice(-4) : "***"
 
-  if (!termiiResult.success) {
-    console.error(`[BankSpace SMS Gateway Error]: Failed to deliver OTP to ${e164Phone}. ${String(termiiResult.error || "Unknown error")}`)
+  if (!sendExaResult.success) {
+    console.error(`[BankSpace SMS Gateway Error]: Failed to deliver OTP to ${e164Phone}. ${String(sendExaResult.error || "Unknown error")}`)
     return {
       success: false,
       message: `Failed to send OTP SMS to ${maskedPhone}. Please try again later.`,
@@ -288,11 +283,11 @@ export async function sendPhoneOtp(
     })
   }
 
-  console.log(`[BankSpace SMS Gateway]: Real Termii SMS OTP delivered to ${e164Phone} (Message ID: ${termiiResult.messageId})`)
+  console.log(`[BankSpace SMS Gateway]: Real SendExa SMS OTP delivered to ${e164Phone} (Message ID: ${sendExaResult.messageId})`)
 
   return {
     success: true,
-    message: `OTP sent successfully to ${maskedPhone} via Termii SMS. Expires in 10 minutes.`,
+    message: `OTP sent successfully to ${maskedPhone} via SendExa SMS. Expires in 10 minutes.`,
     cooldownSeconds: 60,
   }
 }
@@ -314,7 +309,6 @@ export async function verifyPhoneOtp(
   const cleanOtp = inputOtp.trim()
   const formattedPhone = rawPhone.trim()
   const e164Phone = formatToE164(formattedPhone)
-  if (!e164Phone) throw new Error("Invalid phone number provided.")
   const normalizedAccountNum = normalizePhoneNumberToAccountNumber(e164Phone, userId)
 
   const { client, isFallback } = getPrismaClient()
@@ -328,7 +322,10 @@ export async function verifyPhoneOtp(
   }
 
   const activeOtpRecord = await client.phoneOtp.findFirst({
-    where: { userId, phone: e164Phone },
+    where: {
+      userId,
+      OR: [{ phone: formattedPhone }, { phone: e164Phone }],
+    },
     orderBy: { createdAt: "desc" },
   })
 
