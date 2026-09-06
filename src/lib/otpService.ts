@@ -65,11 +65,11 @@ export async function dispatchSendExaSms(
 
   if (!apiToken && !clientId) {
     console.warn(
-      `[SendExa SMS Gateway Notice]: SENDEXA_API_TOKEN / SENDEXA_CLIENT_ID missing in environment variables. SMS to ${e164Phone} not sent.`
+      `[SendExa SMS Gateway Notice]: SENDEXA_API_TOKEN missing in environment variables. SMS to ${e164Phone} not sent.`
     )
     return {
       success: false,
-      error: "SENDEXA_API_TOKEN or SENDEXA_CLIENT_ID is not configured in environment variables.",
+      error: "SENDEXA_API_TOKEN is not configured in environment variables.",
     }
   }
 
@@ -78,101 +78,88 @@ export async function dispatchSendExaSms(
   const senderIds = [userSenderId, "Letcol", "BankSpace", "N-Alert"].filter(Boolean) as string[]
 
   const phoneFormats = [e164Phone, digitsPhone]
-  const payloadVariants = [
-    { messageKey: "message", authType: "bearer" },
-    { messageKey: "sms", authType: "bearer" },
-    { messageKey: "message", authType: "body" },
-    { messageKey: "sms", authType: "body" },
-    { messageKey: "text", authType: "body" },
+  const authHeaderVariants = [
+    apiToken.startsWith("Basic ") ? apiToken : `Basic ${apiToken}`,
+    apiToken.startsWith("Bearer ") ? apiToken : `Bearer ${apiToken}`,
   ]
+  const payloadVariants = ["message", "sms", "text"]
 
   let lastErrorMessage = "SendExa SMS delivery failed."
 
   for (const phone of phoneFormats) {
     for (const senderId of senderIds) {
-      for (const variant of payloadVariants) {
-        try {
-          const payload: any = {
-            to: phone,
-            recipient: phone,
-            mobile: phone,
-            destination: phone,
-            from: senderId,
-            sender: senderId,
-            sender_id: senderId,
-          }
-
-          if (clientId) {
-            payload.client_id = clientId
-            payload.clientId = clientId
-          }
-
-          payload[variant.messageKey] = messageBody
-
-          const headers: any = {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          }
-
-          if (clientId) {
-            headers["X-Client-ID"] = clientId
-            headers["X-Client-Id"] = clientId
-          }
-
-          if (apiToken) {
-            if (variant.authType === "bearer") {
-              headers.Authorization = apiToken.startsWith("Bearer ") ? apiToken : `Bearer ${apiToken}`
-              headers["X-API-KEY"] = apiToken
-              headers["X-Api-Key"] = apiToken
-              headers["api-key"] = apiToken
-            } else {
-              payload.api_key = apiToken
-              payload.apiKey = apiToken
-              payload.token = apiToken
-              payload.api_token = apiToken
-            }
-          }
-
-          const res = await fetch(sendExaBaseUrl, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload),
-          })
-
-          const text = await res.text().catch(() => "")
-          let data: any = {}
+      for (const authHeaderValue of authHeaderVariants) {
+        for (const messageKey of payloadVariants) {
           try {
-            data = text ? JSON.parse(text) : {}
-          } catch {
-            data = { raw: text }
+            const payload: any = {
+              to: phone,
+              recipient: phone,
+              mobile: phone,
+              destination: phone,
+              from: senderId,
+              sender: senderId,
+              sender_id: senderId,
+            }
+
+            if (clientId) {
+              payload.client_id = clientId
+              payload.clientId = clientId
+            }
+
+            payload[messageKey] = messageBody
+
+            const headers: Record<string, string> = {
+              "Authorization": authHeaderValue,
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+            }
+
+            if (clientId) {
+              headers["X-Client-ID"] = clientId
+              headers["X-Client-Id"] = clientId
+            }
+
+            const res = await fetch(sendExaBaseUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(payload),
+            })
+
+            const text = await res.text().catch(() => "")
+            let data: any = {}
+            try {
+              data = text ? JSON.parse(text) : {}
+            } catch {
+              data = { raw: text }
+            }
+
+            const responseText = String(data?.message || data?.response || data?.status || data?.raw || "")
+            const isSuccess =
+              res.ok &&
+              (data?.message_id ||
+                data?.id ||
+                data?.sid ||
+                data?.code === "ok" ||
+                data?.code === 200 ||
+                data?.status === "success" ||
+                responseText.toLowerCase().includes("success") ||
+                responseText.toLowerCase().includes("sent") ||
+                responseText.toLowerCase().includes("ok"))
+
+            if (isSuccess) {
+              console.log(
+                `[SendExa SMS Gateway]: SMS successfully dispatched to ${phone} using senderId '${senderId}'. Message ID: ${data?.message_id || data?.id || data?.sid || "sent"}`
+              )
+              return { success: true, messageId: data?.message_id || data?.id || data?.sid || "sent" }
+            }
+
+            if (data?.message) lastErrorMessage = data.message
+            else if (data?.error) lastErrorMessage = data.error
+
+            console.warn(`[SendExa Notice]: Attempt to ${phone} (sender: ${senderId}, auth: ${authHeaderValue.slice(0, 10)}...) responded status=${res.status} body=${responseText}`)
+          } catch (err: any) {
+            lastErrorMessage = err?.message || "SendExa API network exception."
           }
-
-          const responseText = String(data?.message || data?.response || data?.status || data?.raw || "")
-          const isSuccess =
-            res.ok &&
-            (data?.message_id ||
-              data?.id ||
-              data?.sid ||
-              data?.code === "ok" ||
-              data?.code === 200 ||
-              data?.status === "success" ||
-              responseText.toLowerCase().includes("success") ||
-              responseText.toLowerCase().includes("sent") ||
-              responseText.toLowerCase().includes("ok"))
-
-          if (isSuccess) {
-            console.log(
-              `[SendExa SMS Gateway]: SMS successfully dispatched to ${phone} using senderId '${senderId}'. Message ID: ${data?.message_id || data?.id || data?.sid || "sent"}`
-            )
-            return { success: true, messageId: data?.message_id || data?.id || data?.sid || "sent" }
-          }
-
-          if (data?.message) lastErrorMessage = data.message
-          else if (data?.error) lastErrorMessage = data.error
-
-          console.warn(`[SendExa Notice]: Attempt to ${phone} (sender: ${senderId}) responded status=${res.status} body=${responseText}`)
-        } catch (err: any) {
-          lastErrorMessage = err?.message || "SendExa API network exception."
         }
       }
     }
