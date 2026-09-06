@@ -51,31 +51,39 @@ export async function dispatchSendExaSms(
   toPhone: string,
   messageBody: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const apiKey = process.env.SENDEXA_API_KEY || process.env.TERMII_API_KEY
+  const apiToken = (
+    process.env.SENDEXA_API_TOKEN ||
+    process.env.SENDEXA_API_KEY ||
+    process.env.TERMII_API_KEY ||
+    ""
+  ).trim()
+
+  const clientId = (process.env.SENDEXA_CLIENT_ID || "").trim()
   const e164Phone = formatToE164(toPhone)
   const digitsPhone = formatToDigitsPhone(toPhone)
   const sendExaBaseUrl = process.env.SENDEXA_BASE_URL || "https://api.sendexa.com/v1/sms/send"
 
-  if (!apiKey || !apiKey.trim()) {
+  if (!apiToken && !clientId) {
     console.warn(
-      `[SendExa SMS Gateway Notice]: SENDEXA_API_KEY missing in environment variables. SMS to ${e164Phone} not sent.`
+      `[SendExa SMS Gateway Notice]: SENDEXA_API_TOKEN / SENDEXA_CLIENT_ID missing in environment variables. SMS to ${e164Phone} not sent.`
     )
     return {
       success: false,
-      error: "SENDEXA_API_KEY is not configured in environment variables.",
+      error: "SENDEXA_API_TOKEN or SENDEXA_CLIENT_ID is not configured in environment variables.",
     }
   }
 
-  // Sender IDs: User explicitly specified "Letcol" as Sender ID
+  // Sender IDs: User explicitly specified "Letcol" / "BankSpace"
   const userSenderId = process.env.SENDEXA_SENDER_ID?.trim() || process.env.TERMII_SENDER_ID?.trim() || "Letcol"
-  const senderIds = [userSenderId, "Letcol", "BankSpace"].filter(Boolean) as string[]
+  const senderIds = [userSenderId, "Letcol", "BankSpace", "N-Alert"].filter(Boolean) as string[]
 
   const phoneFormats = [e164Phone, digitsPhone]
   const payloadVariants = [
-    { messageKey: "message", authType: "header" },
-    { messageKey: "sms", authType: "header" },
+    { messageKey: "message", authType: "bearer" },
+    { messageKey: "sms", authType: "bearer" },
     { messageKey: "message", authType: "body" },
     { messageKey: "sms", authType: "body" },
+    { messageKey: "text", authType: "body" },
   ]
 
   let lastErrorMessage = "SendExa SMS delivery failed."
@@ -86,8 +94,19 @@ export async function dispatchSendExaSms(
         try {
           const payload: any = {
             to: phone,
+            recipient: phone,
+            mobile: phone,
+            destination: phone,
             from: senderId,
+            sender: senderId,
+            sender_id: senderId,
           }
+
+          if (clientId) {
+            payload.client_id = clientId
+            payload.clientId = clientId
+          }
+
           payload[variant.messageKey] = messageBody
 
           const headers: any = {
@@ -95,12 +114,23 @@ export async function dispatchSendExaSms(
             Accept: "application/json",
           }
 
-          if (variant.authType === "header") {
-            headers.Authorization = `Bearer ${apiKey.trim()}`
-            headers["X-API-KEY"] = apiKey.trim()
-          } else {
-            payload.api_key = apiKey.trim()
-            payload.apiKey = apiKey.trim()
+          if (clientId) {
+            headers["X-Client-ID"] = clientId
+            headers["X-Client-Id"] = clientId
+          }
+
+          if (apiToken) {
+            if (variant.authType === "bearer") {
+              headers.Authorization = apiToken.startsWith("Bearer ") ? apiToken : `Bearer ${apiToken}`
+              headers["X-API-KEY"] = apiToken
+              headers["X-Api-Key"] = apiToken
+              headers["api-key"] = apiToken
+            } else {
+              payload.api_key = apiToken
+              payload.apiKey = apiToken
+              payload.token = apiToken
+              payload.api_token = apiToken
+            }
           }
 
           const res = await fetch(sendExaBaseUrl, {
