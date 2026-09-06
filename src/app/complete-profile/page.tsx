@@ -123,6 +123,18 @@ export default function CompleteProfilePage() {
     setStep(2)
   }
 
+  // Step 2: Proceed to Step 3 with or without OTP verification
+  const handleStep2Continue = () => {
+    if (!phone || !phone.trim()) {
+      setError("Please enter a valid Nigerian phone number.")
+      return
+    }
+    const normalized = normalizePhoneNumberToAccountNumber(phone.trim())
+    setAllocatedBankSpaceAcc(normalized)
+    setError("")
+    setStep(3)
+  }
+
   // Step 2: Send OTP
   const handleSendOtp = async () => {
     if (!phone || !phone.trim()) {
@@ -419,7 +431,7 @@ export default function CompleteProfilePage() {
                   </div>
                   Phone Verification
                 </h2>
-                <p className="mt-2 text-sm text-slate-500">Your verified phone number becomes your 10-digit BankSpace Account Number.</p>
+                <p className="mt-2 text-sm text-slate-500">Your phone number becomes your 10-digit BankSpace Account Number.</p>
               </div>
 
               <div>
@@ -430,19 +442,17 @@ export default function CompleteProfilePage() {
                     placeholder="e.g. 08012345678"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={phoneVerified || otpSent}
+                    disabled={isSendingOtp}
                     className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-bold text-slate-900 outline-none transition focus:border-[#3f3cff] focus:bg-white focus:ring-4 focus:ring-indigo-100 disabled:opacity-60"
                   />
-                  {!otpSent && (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={isSendingOtp || !phone}
-                      className="rounded-2xl bg-[#3f3cff] px-4 text-xs font-bold text-white transition hover:bg-[#332ce4] disabled:opacity-50"
-                    >
-                      {isSendingOtp ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Send OTP"}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={isSendingOtp || !phone}
+                    className="rounded-2xl bg-slate-900 px-4 text-xs font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {isSendingOtp ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : otpSent ? "Resend OTP" : "Send OTP"}
+                  </button>
                 </div>
               </div>
 
@@ -491,6 +501,16 @@ export default function CompleteProfilePage() {
                   </div>
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={handleStep2Continue}
+                disabled={!phone || !phone.trim()}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-[#4938f2] to-[#622dff] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition hover:opacity-95 disabled:opacity-50"
+              >
+                <span>Continue to Identity Verification</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
           )}
 
