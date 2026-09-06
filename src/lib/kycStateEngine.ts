@@ -92,12 +92,12 @@ export function deriveUserKycState(user: UserKycRecord | null | undefined): KycS
     }
   }
 
-  // 4. Phone Verification Check
-  if (!user.phoneVerified) {
+  // 4. Phone Presence Check (Allow manual phone input with or without OTP verification)
+  if (!user.phoneVerified && (!user.phone || !user.phone.trim())) {
     return {
       state: "PHONE_PENDING",
       accessLevel: "LIMITED",
-      description: "SMS OTP phone verification required before financial account activation.",
+      description: "Phone number input is required before financial account activation.",
       canPerformFinancialMutations: false,
     }
   }

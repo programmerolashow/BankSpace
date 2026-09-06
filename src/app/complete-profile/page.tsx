@@ -285,8 +285,8 @@ export default function CompleteProfilePage() {
       setError("Incomplete profile: please complete Personal Details to proceed.")
       return
     }
-    if (!phoneVerified) {
-      setError("Incomplete profile: please verify your phone to proceed.")
+    if (!phone || !phone.trim()) {
+      setError("Incomplete profile: please enter your phone number to proceed.")
       return
     }
     if (!bvn.trim() || bvn.trim().length !== 11) {

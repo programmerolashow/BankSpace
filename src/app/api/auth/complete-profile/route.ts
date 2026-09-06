@@ -165,6 +165,9 @@ export async function POST(request: Request) {
           data: {
             name: fullName,
             phone: phone.trim(),
+            phoneVerified: true,
+            kycState: "ACTIVE",
+            isProfileComplete: true,
             firstName: firstName.trim(),
             middleName: middleName?.trim() || null,
             lastName: lastName.trim(),
